@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Connect</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+            min-height: 100vh;
+            display: flex;
+            padding: 0;
+            margin: 0;
+        }
+
+        .sidebar {
+            width: 300px;
+            background: white;
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+            color: white;
+        }
+
+        .sidebar-header h2 {
+            font-size: 18px;
+            margin-bottom: 5px;
+        }
+
+        .sidebar-header p {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .instances-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .instance-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .instance-item:hover {
+            background: #f9f9f9;
+        }
+
+        .instance-item-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .instance-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #25D366;
+        }
+
+        .instance-avatar.placeholder {
+            background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .instance-item-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .instance-item-name {
+            font-weight: 600;
+            font-size: 14px;
+            color: #333;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .instance-item-id {
+            font-size: 11px;
+            color: #999;
+            font-family: monospace;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .instance-status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .instance-status-dot.online {
+            background: #25D366;
+            box-shadow: 0 0 5px #25D366;
+        }
+
+        .instance-status-dot.offline {
+            background: #ccc;
+        }
+
+        .no-instances {
+            padding: 40px 20px;
+            text-align: center;
+            color: #999;
+            font-size: 14px;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 50px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+
+        h1 {
+            color: #128C7E;
+            margin-bottom: 30px;
+            font-size: 32px;
+        }
+
+        .btn {
+            padding: 16px 48px;
+            background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 15px rgba(37, 211, 102, 0.4);
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(37, 211, 102, 0.5);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #25D366;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 30px auto;
+            display: none;
+        }
+
+        .spinner.active {
+            display: block;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .status.active {
+            display: block;
+        }
+
+        .status.error {
+            background: #fee;
+            color: #c33;
+        }
+
+        .status.success {
+            background: #efe;
+            color: #3c3;
+        }
+
+        .status.info {
+            background: #eef;
+            color: #33c;
+        }
+
+        .qr-section {
+            margin-top: 30px;
+            display: none;
+        }
+
+        .qr-section.active {
+            display: block;
+        }
+
+        .qr-code {
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+            border-radius: 15px;
+            display: inline-block;
+            border: 3px solid #25D366;
+        }
+
+        .qr-code img {
+            max-width: 280px;
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .qr-instructions {
+            color: #666;
+            font-size: 14px;
+            margin-top: 15px;
+            line-height: 1.6;
+        }
+
+        .profile-section {
+            margin-top: 30px;
+            display: none;
+            text-align: left;
+        }
+
+        .profile-section.active {
+            display: block;
+        }
+
+        .profile-header {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+
+        .profile-pic {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #25D366;
+        }
+
+        .profile-pic.placeholder {
+            background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        .profile-info {
+            flex: 1;
+        }
+
+        .profile-name {
+            font-size: 22px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .profile-status {
+            font-size: 14px;
+            color: #666;
+            font-style: italic;
+        }
+
+        .instance-details {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 15px;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: #555;
+        }
+
+        .detail-value {
+            color: #333;
+            text-align: right;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-badge.connected {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-badge.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h2>Connected Instances</h2>
+            <p id="instanceCount">0 instances</p>
+        </div>
+        <div class="instances-list" id="instancesList">
+            <div class="no-instances">No instances yet</div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="container">
+        <h1>WhatsApp Connect</h1>
+
+        <button class="btn" id="connectBtn">Connect WhatsApp</button>
+
+        <div class="spinner" id="spinner"></div>
+
+        <div class="status" id="status"></div>
+
+        <div class="qr-section" id="qrSection">
+            <h3 style="color: #128C7E; margin-bottom: 15px;">Scan QR Code</h3>
+            <div class="qr-code">
+                <img id="qrImage" alt="QR Code">
+            </div>
+            <div class="qr-instructions">
+                Open WhatsApp on your phone<br>
+                Tap <strong>Menu</strong> or <strong>Settings</strong><br>
+                Tap <strong>Linked Devices</strong> → <strong>Link a Device</strong><br>
+                Point your phone at this screen to scan the code
+            </div>
+        </div>
+
+        <div class="profile-section" id="profileSection">
+            <div class="profile-header">
+                <div id="profilePicContainer"></div>
+                <div class="profile-info">
+                    <div class="profile-name" id="profileName">Loading...</div>
+                    <div class="profile-status" id="profileStatus"></div>
+                </div>
+            </div>
+
+            <div class="instance-details">
+                <div class="detail-row">
+                    <span class="detail-label">Instance Name</span>
+                    <span class="detail-value" id="instanceName">-</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Status</span>
+                    <span class="detail-value" id="connectionStatus">-</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Instance ID</span>
+                    <span class="detail-value" id="instanceId" style="font-size: 11px; font-family: monospace;">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <script>
+        // Configuration
+        const CONFIG = {
+            serverUrl: 'http://localhost:8080',
+            apiKey: 'lacreme@4'
+        };
+
+        // DOM elements
+        const connectBtn = document.getElementById('connectBtn');
+        const spinner = document.getElementById('spinner');
+        const statusDiv = document.getElementById('status');
+        const qrSection = document.getElementById('qrSection');
+        const qrImage = document.getElementById('qrImage');
+        const profileSection = document.getElementById('profileSection');
+
+        // Utility functions
+        function showStatus(message, type = 'info') {
+            statusDiv.textContent = message;
+            statusDiv.className = `status active ${type}`;
+        }
+
+        function hideStatus() {
+            statusDiv.className = 'status';
+        }
+
+        function showSpinner() {
+            spinner.className = 'spinner active';
+        }
+
+        function hideSpinner() {
+            spinner.className = 'spinner';
+        }
+
+        // Generate sequential instance name
+        function generateInstanceName() {
+            const counter = parseInt(localStorage.getItem('instanceCounter') || '0') + 1;
+            localStorage.setItem('instanceCounter', counter.toString());
+            return `instance-${counter}`;
+        }
+
+        // Fetch instance profile
+        async function fetchInstanceProfile(instanceName) {
+            try {
+                const url = `${CONFIG.serverUrl}/instance/fetchInstances?instanceName=${instanceName}`;
+                console.log('Fetching instance from:', url);
+
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'apikey': CONFIG.apiKey
+                    }
+                });
+
+                if (!response.ok) {
+                    console.error('Fetch instances failed:', response.status);
+                    throw new Error('Failed to fetch instance profile');
+                }
+
+                const data = await response.json();
+                console.log('Raw API response:', JSON.stringify(data, null, 2));
+                return data;
+            } catch (error) {
+                console.error('Error fetching profile:', error);
+                return null;
+            }
+        }
+
+        // Display profile information
+        function displayProfile(instanceData) {
+            // Extract instance info (handle if it's wrapped in array)
+            const instance = Array.isArray(instanceData) ? instanceData[0] : instanceData;
+
+            if (!instance) {
+                showStatus('Unable to load profile', 'error');
+                return;
+            }
+
+            // Profile picture (correct: profilePicUrl)
+            const profilePicContainer = document.getElementById('profilePicContainer');
+            if (instance.profilePicUrl) {
+                profilePicContainer.innerHTML = `<img src="${instance.profilePicUrl}" class="profile-pic" alt="Profile">`;
+            } else {
+                const initial = instance.profileName ? instance.profileName.charAt(0).toUpperCase() : '?';
+                profilePicContainer.innerHTML = `<div class="profile-pic placeholder">${initial}</div>`;
+            }
+
+            // Profile info
+            const displayName = instance.profileName || instance.ownerJid?.split('@')[0] || 'Unknown';
+            document.getElementById('profileName').textContent = displayName;
+            document.getElementById('profileStatus').textContent = instance.ownerJid || 'No status';
+
+            // Instance details (correct: name, id)
+            document.getElementById('instanceName').textContent = instance.name || '-';
+            document.getElementById('instanceId').textContent = instance.id || '-';
+
+            // Connection status (correct: connectionStatus)
+            const statusBadge = instance.connectionStatus === 'open'
+                ? '<span class="status-badge connected">Connected</span>'
+                : '<span class="status-badge disconnected">Disconnected</span>';
+            document.getElementById('connectionStatus').innerHTML = statusBadge;
+
+            // Show profile section
+            qrSection.classList.remove('active');
+            profileSection.classList.add('active');
+        }
+
+        // Poll for connection status
+        async function pollConnectionStatus(instanceName, maxAttempts = 60) {
+            let attempts = 0;
+
+            const poll = async () => {
+                if (attempts >= maxAttempts) {
+                    showStatus('Connection timeout. Please try again.', 'error');
+                    hideSpinner();
+                    connectBtn.disabled = false;
+                    return;
+                }
+
+                attempts++;
+                console.log(`Polling attempt ${attempts}/${maxAttempts} for instance: ${instanceName}`);
+
+                const instanceData = await fetchInstanceProfile(instanceName);
+                console.log('Fetched instance data:', instanceData);
+
+                if (instanceData) {
+                    const instance = Array.isArray(instanceData) ? instanceData[0] : instanceData;
+                    console.log('Instance connectionStatus:', instance?.connectionStatus);
+
+                    if (instance && instance.connectionStatus === 'open') {
+                        // Connected!
+                        console.log('Instance connected! Displaying profile...');
+                        hideSpinner();
+                        showStatus('Connected successfully!', 'success');
+                        displayProfile(instanceData);
+                        connectBtn.disabled = false;
+
+                        // Refresh sidebar to show new connection
+                        refreshSidebar();
+                        return;
+                    } else {
+                        showStatus(`Waiting for connection... (attempt ${attempts}/${maxAttempts})`, 'info');
+                    }
+                }
+
+                // Continue polling every 3 seconds
+                setTimeout(poll, 3000);
+            };
+
+            poll();
+        }
+
+        // Main connect function
+        async function connectWhatsApp() {
+            connectBtn.disabled = true;
+            showSpinner();
+            hideStatus();
+            qrSection.classList.remove('active');
+            profileSection.classList.remove('active');
+
+            const instanceName = generateInstanceName();
+
+            try {
+                // Step 1: Create instance
+                showStatus('Creating instance...', 'info');
+
+                const createResponse = await fetch(`${CONFIG.serverUrl}/instance/create`, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': CONFIG.apiKey,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        instanceName: instanceName,
+                        integration: 'WHATSAPP-BAILEYS',
+                        qrcode: true
+                    })
+                });
+
+                // Check for success (201 Created or 200 OK)
+                if (createResponse.status !== 201 && createResponse.status !== 200) {
+                    const errorText = await createResponse.text();
+                    console.error('Create instance error:', errorText);
+                    throw new Error(`Failed to create instance: ${createResponse.status} - ${errorText}`);
+                }
+
+                const createData = await createResponse.json();
+                console.log('Instance created successfully (201):', createData);
+                showStatus('Instance created! Generating QR code...', 'success');
+
+                // Step 2: Wait a bit for initialization
+                await new Promise(resolve => setTimeout(resolve, 2000));
+
+                // Step 3: Get QR code
+                showStatus('Fetching QR code...', 'info');
+
+                const qrResponse = await fetch(`${CONFIG.serverUrl}/instance/connect/${instanceName}`, {
+                    method: 'GET',
+                    headers: {
+                        'apikey': CONFIG.apiKey
+                    }
+                });
+
+                if (!qrResponse.ok) {
+                    const errorText = await qrResponse.text();
+                    console.error('QR code error:', errorText);
+                    throw new Error(`Failed to get QR code: ${qrResponse.status} - ${errorText}`);
+                }
+
+                const contentType = qrResponse.headers.get('content-type');
+                console.log('QR Response content-type:', contentType);
+
+                // Handle QR code response
+                if (contentType && contentType.includes('application/json')) {
+                    const qrData = await qrResponse.json();
+                    console.log('QR Data received:', qrData);
+                    const base64Data = qrData.base64 || qrData.qrcode || qrData.code;
+
+                    if (base64Data) {
+                        qrImage.src = base64Data.startsWith('data:image')
+                            ? base64Data
+                            : `data:image/png;base64,${base64Data}`;
+                    } else {
+                        throw new Error('QR code data not found');
+                    }
+                } else if (contentType && contentType.includes('image')) {
+                    const blob = await qrResponse.blob();
+                    qrImage.src = URL.createObjectURL(blob);
+                } else {
+                    throw new Error('Unexpected response format');
+                }
+
+                // Show QR code
+                qrSection.classList.add('active');
+                hideSpinner();
+                showStatus('QR code ready! Scan with WhatsApp to connect', 'success');
+
+                // Start polling for connection status
+                console.log('Starting to poll for connection status...');
+                showSpinner();
+                pollConnectionStatus(instanceName);
+
+            } catch (error) {
+                console.error('Error:', error);
+                showStatus(error.message, 'error');
+                hideSpinner();
+                connectBtn.disabled = false;
+            }
+        }
+
+        // Fetch all instances
+        async function fetchAllInstances() {
+            try {
+                const response = await fetch(`${CONFIG.serverUrl}/instance/fetchInstances`, {
+                    method: 'GET',
+                    headers: {
+                        'apikey': CONFIG.apiKey
+                    }
+                });
+
+                if (!response.ok) {
+                    console.error('Failed to fetch instances:', response.status);
+                    return [];
+                }
+
+                const data = await response.json();
+                console.log('Raw fetchInstances response:', JSON.stringify(data, null, 2));
+                console.log('Data type:', typeof data);
+                console.log('Is array:', Array.isArray(data));
+
+                // Handle different response structures
+                if (Array.isArray(data)) {
+                    // If it's directly an array
+                    console.log('Data is array, length:', data.length);
+                    if (data.length > 0) {
+                        console.log('First instance sample:', data[0]);
+                    }
+                    return data;
+                } else if (data && typeof data === 'object') {
+                    // If it's wrapped in an object, check common keys
+                    if (data.instances) {
+                        console.log('Found instances in data.instances');
+                        return data.instances;
+                    } else if (data.data) {
+                        console.log('Found instances in data.data');
+                        return data.data;
+                    } else {
+                        console.log('Data is object but no instances array found. Keys:', Object.keys(data));
+                        // Maybe each key is an instance?
+                        return Object.values(data);
+                    }
+                }
+
+                return [];
+            } catch (error) {
+                console.error('Error fetching all instances:', error);
+                return [];
+            }
+        }
+
+        // Render instances in sidebar
+        function renderInstances(instances) {
+            const instancesList = document.getElementById('instancesList');
+            const instanceCount = document.getElementById('instanceCount');
+
+            console.log('Rendering instances:', instances);
+
+            if (!instances || instances.length === 0) {
+                instancesList.innerHTML = '<div class="no-instances">No instances yet</div>';
+                instanceCount.textContent = '0 instances';
+                return;
+            }
+
+            instanceCount.textContent = `${instances.length} instance${instances.length !== 1 ? 's' : ''}`;
+
+            instancesList.innerHTML = instances.map((instance, index) => {
+                // API Response properties (correct names):
+                // - connectionStatus (not status)
+                // - name (not instanceName)
+                // - profilePicUrl (not profilePictureUrl)
+                // - profileName
+                // - ownerJid
+                // - id (UUID)
+
+                const isOnline = instance.connectionStatus === 'open';
+                const profileName = instance.profileName || instance.ownerJid?.split('@')[0] || 'Unknown';
+                const instanceName = instance.name || `instance-${index}`;
+                const initial = profileName.charAt(0).toUpperCase();
+                const avatarHtml = instance.profilePicUrl
+                    ? `<img src="${instance.profilePicUrl}" class="instance-avatar" alt="Profile">`
+                    : `<div class="instance-avatar placeholder">${initial}</div>`;
+
+                return `
+                    <div class="instance-item" onclick="selectInstance('${instanceName}')">
+                        <div class="instance-item-header">
+                            ${avatarHtml}
+                            <div class="instance-item-info">
+                                <div class="instance-item-name">${profileName}</div>
+                                <div class="instance-item-id">${instanceName}</div>
+                            </div>
+                            <div class="instance-status-dot ${isOnline ? 'online' : 'offline'}"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Select instance (placeholder for future functionality)
+        window.selectInstance = function(instanceName) {
+            console.log('Selected instance:', instanceName);
+            // Future: Load instance details in main panel
+        };
+
+        // Refresh sidebar instances
+        async function refreshSidebar() {
+            const instances = await fetchAllInstances();
+            renderInstances(instances);
+        }
+
+        // Auto-refresh sidebar every 5 seconds
+        setInterval(refreshSidebar, 5000);
+
+        // Initial load
+        refreshSidebar();
+
+        // Event listener
+        connectBtn.addEventListener('click', connectWhatsApp);
+    </script>
+</body>
+</html>

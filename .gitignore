@@ -1,0 +1,20 @@
+# IDE and editor files
+.claude/
+.vscode/
+.idea/
+
+# Environment files with secrets
+.env
+
+# MCP configuration (may contain local paths)
+.mcp.json
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Old versions
+whatsapp-connect.html

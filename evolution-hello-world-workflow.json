@@ -1,0 +1,124 @@
+{
+  "name": "Evolution API - Hello World",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger-1",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://YOUR-SERVER-URL/instance/fetchInstances",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "YOUR-API-KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http-fetch-instances",
+      "name": "Fetch Instances",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// Find first instance with status 'open'\nconst instances = $input.all();\n\nfor (const item of instances) {\n  const instanceData = item.json;\n  \n  // Check if instance is an array (API returns array)\n  if (Array.isArray(instanceData)) {\n    const activeInstance = instanceData.find(inst => inst.status === 'open');\n    if (activeInstance) {\n      return [{ json: activeInstance }];\n    }\n  }\n}\n\n// If no active instance found, throw error\nthrow new Error('No active instance found');"
+      },
+      "id": "code-filter-instance",
+      "name": "Find Active Instance",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.serverUrl }}/message/sendText/{{ $json.instanceName }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $json.apikey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "5511999999999"
+            },
+            {
+              "name": "text",
+              "value": "Hello World"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http-send-message",
+      "name": "Send Hello World",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Instances",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Instances": {
+      "main": [
+        [
+          {
+            "node": "Find Active Instance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Active Instance": {
+      "main": [
+        [
+          {
+            "node": "Send Hello World",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "active": false
+}
