@@ -115,26 +115,32 @@ export function ConnectionStatus({ onConnectClick, refreshTrigger }: ConnectionS
       return;
     }
 
+    console.log("[ConnectionStatus] Starting disconnect...");
     setIsDisconnecting(true);
     try {
       const response = await fetch("/api/evolution/disconnect", {
         method: "POST",
       });
 
+      console.log("[ConnectionStatus] Disconnect response status:", response.status);
       const data = await response.json();
+      console.log("[ConnectionStatus] Disconnect response data:", data);
 
       if (data.success) {
+        console.log("[ConnectionStatus] Disconnect successful, updating state...");
         setConnectionData({
           connected: false,
           status: "disconnected",
         });
         // Refresh status after disconnect
-        setTimeout(checkStatus, 1000);
+        console.log("[ConnectionStatus] Scheduling status check in 2 seconds...");
+        setTimeout(checkStatus, 2000);
       } else {
+        console.error("[ConnectionStatus] Disconnect failed:", data.error);
         alert("Failed to disconnect. Please try again.");
       }
     } catch (error) {
-      console.error("Error disconnecting:", error);
+      console.error("[ConnectionStatus] Error disconnecting:", error);
       alert("Error disconnecting. Please try again.");
     } finally {
       setIsDisconnecting(false);
@@ -154,11 +160,6 @@ export function ConnectionStatus({ onConnectClick, refreshTrigger }: ConnectionS
   // Disconnected state - Show prominent connect button
   if (!connectionData.connected) {
     return (
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          <XCircle className="h-4 w-4 text-red-500" />
-          <span className="text-sm text-gray-600">Not Connected</span>
-        </div>
         <Button
           onClick={onConnectClick}
           className="bg-green-600 hover:bg-green-700 text-white font-semibold px-6"
@@ -166,7 +167,6 @@ export function ConnectionStatus({ onConnectClick, refreshTrigger }: ConnectionS
           <CheckCircle2 className="h-4 w-4 mr-2" />
           Connect WhatsApp
         </Button>
-      </div>
     );
   }
 

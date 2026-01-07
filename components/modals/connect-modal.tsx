@@ -9,15 +9,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
 
 interface ConnectModalProps {
   open: boolean;
@@ -28,8 +19,6 @@ interface ConnectModalProps {
 export function ConnectModal({ open, onOpenChange, onConnected }: ConnectModalProps) {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [status, setStatus] = useState<string>("Loading...");
-  const [autoDisconnect, setAutoDisconnect] = useState<string>("30");
-  const [keepAlive, setKeepAlive] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -253,46 +242,6 @@ export function ConnectModal({ open, onOpenChange, onConnected }: ConnectModalPr
               <li>Tap &quot;Link a Device&quot;</li>
               <li>Scan this QR code</li>
             </ol>
-          </div>
-
-          {/* Settings */}
-          <div className="space-y-4 border-t pt-4">
-            <p className="text-sm font-semibold text-gray-900">⚙️ Settings:</p>
-
-            {/* Auto-disconnect */}
-            <div className="space-y-2">
-              <Label htmlFor="auto-disconnect">Auto-disconnect after:</Label>
-              <Select
-                value={autoDisconnect}
-                onValueChange={setAutoDisconnect}
-                disabled={keepAlive}
-              >
-                <SelectTrigger id="auto-disconnect">
-                  <SelectValue placeholder="Select duration" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="15">15 minutes</SelectItem>
-                  <SelectItem value="30">30 minutes</SelectItem>
-                  <SelectItem value="60">60 minutes</SelectItem>
-                  <SelectItem value="120">2 hours</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Keep alive */}
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="keep-alive"
-                checked={keepAlive}
-                onCheckedChange={(checked) => setKeepAlive(checked as boolean)}
-              />
-              <Label
-                htmlFor="keep-alive"
-                className="text-sm font-normal cursor-pointer"
-              >
-                Keep session alive indefinitely
-              </Label>
-            </div>
           </div>
 
           {/* Actions */}

@@ -9,9 +9,14 @@ const INSTANCE_NAME = "whatsapp-main";
  * Disconnects the main WhatsApp instance
  */
 export async function POST() {
+  console.log("[DISCONNECT] Starting disconnect for instance:", INSTANCE_NAME);
+
   try {
-    // Logout the instance (disconnect but keep instance)
-    const result = await evolutionAPI.logoutInstance(INSTANCE_NAME);
+    // Delete the instance completely (logout is unreliable in Evolution API)
+    // The connect flow will recreate the instance when user reconnects
+    console.log("[DISCONNECT] Calling evolutionAPI.deleteInstance...");
+    const result = await evolutionAPI.deleteInstance(INSTANCE_NAME);
+    console.log("[DISCONNECT] Delete result:", JSON.stringify(result, null, 2));
 
     return NextResponse.json({
       success: true,
@@ -19,7 +24,7 @@ export async function POST() {
       status: result.status,
     });
   } catch (error) {
-    console.error("Evolution API disconnect error:", error);
+    console.error("[DISCONNECT] Evolution API disconnect error:", error);
     return NextResponse.json(
       {
         success: false,
