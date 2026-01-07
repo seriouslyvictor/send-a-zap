@@ -2,14 +2,23 @@
   "mcpServers": {
     "n8n-mcp": {
       "command": "cmd",
-      "args": ["/c npx n8n-mcp"],
+      "args": [
+        "/c npx n8n-mcp"
+      ],
       "env": {
         "MCP_MODE": "stdio",
         "LOG_LEVEL": "error",
         "DISABLE_CONSOLE_OUTPUT": "true",
-        "N8N_API_URL": "http://n8n:5678/home/workflows",
-        "N8N_API_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1OTc3MWE2OS0xMWMzLTQxZDktODUyNy0yNDY3Y2YyZWJmMTgiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzY3NzEyMTQzLCJleHAiOjE3NjgyODA0MDB9.YHrfn4zG7RQANNDhwT711VjXzw8oQuzdscMU6qCDIG0"
+        "N8N_API_URL": "",
+        "N8N_API_KEY": ""
       }
+    },
+    "shadcn": {
+      "command": "cmd",
+      "args": [ "/c", "npx",
+        "shadcn@latest",
+        "mcp"
+      ]
     }
   }
 }
