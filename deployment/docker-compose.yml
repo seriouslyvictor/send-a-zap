@@ -1,0 +1,211 @@
+# ===================================================================
+# WhatsApp Automation - Unified Docker Compose Stack
+# ===================================================================
+# Professional structure with clean deployment folder
+#
+# Usage:
+#   docker-compose -f deployment/docker-compose.yml up -d
+#   OR use npm scripts: npm run docker:up
+#
+# Services:
+# - Next.js Frontend (Port 3000)
+# - n8n Workflow Engine (Port 5678)
+# - Evolution API (Port 8080)
+# - PostgreSQL Database (Port 5432)
+# - Redis Cache (Port 6379)
+# - pgAdmin Web UI (Port 4000)
+# ===================================================================
+
+services:
+  # ===================================================================
+  # PostgreSQL - Shared Database
+  # ===================================================================
+  postgres:
+    container_name: whatsapp_postgres
+    image: postgres:16
+    restart: always
+    ports:
+      - "5432:5432"
+    env_file:
+      - ../.env
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=whatsapp_automation
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    command: ["postgres", "-c", "max_connections=1000"]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - evolution-net
+
+  # ===================================================================
+  # pgAdmin - PostgreSQL Web Interface
+  # ===================================================================
+  pgadmin:
+    container_name: whatsapp_pgadmin
+    image: dpage/pgadmin4:latest
+    restart: always
+    ports:
+      - "4000:80"
+    env_file:
+      - ../.env
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_EMAIL:-admin@admin.com}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD}
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - evolution-net
+
+  # ===================================================================
+  # Redis - Cache & Message Queue
+  # ===================================================================
+  redis:
+    container_name: whatsapp_redis
+    image: redis:latest
+    restart: always
+    ports:
+      - "6379:6379"
+    command: redis-server --port 6379 --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - evolution-net
+
+  # ===================================================================
+  # n8n - Workflow Automation Engine
+  # ===================================================================
+  n8n:
+    container_name: whatsapp_n8n
+    image: docker.n8n.io/n8nio/n8n:latest
+    restart: always
+    ports:
+      - "5678:5678"
+    env_file:
+      - ../.env
+    environment:
+      # Database configuration
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n
+      - DB_POSTGRESDB_USER=${POSTGRES_USER:-postgres}
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+
+      # n8n configuration
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=${N8N_WEBHOOK_URL:-http://localhost:5678/}
+      - GENERIC_TIMEZONE=${TIMEZONE:-America/Sao_Paulo}
+
+      # Authentication
+      - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE:-false}
+      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
+
+      # Execution settings
+      - EXECUTIONS_PROCESS=main
+      - EXECUTIONS_MODE=regular
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - evolution-net
+
+  # ===================================================================
+  # Evolution API - WhatsApp Integration
+  # ===================================================================
+  evolution-api:
+    container_name: whatsapp_evolution
+    image: evoapicloud/evolution-api:homolog
+    restart: always
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./evolution-api.env
+    volumes:
+      - evolution_instances:/evolution/instances
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - evolution-net
+
+  # ===================================================================
+  # Next.js - Frontend Application
+  # ===================================================================
+  nextjs:
+    container_name: whatsapp_nextjs
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "3000:3000"
+    env_file:
+      - ../.env
+    environment:
+      - NODE_ENV=production
+      - N8N_API_URL=http://n8n:5678
+      - N8N_API_KEY=${N8N_API_KEY}
+      - EVOLUTION_API_URL=http://evolution-api:8080
+      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
+    depends_on:
+      n8n:
+        condition: service_healthy
+      evolution-api:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    networks:
+      - evolution-net
+
+# ===================================================================
+# Volumes - Persistent Data Storage
+# ===================================================================
+volumes:
+  postgres_data:
+    name: whatsapp_postgres_data
+  pgadmin_data:
+    name: whatsapp_pgadmin_data
+  redis_data:
+    name: whatsapp_redis_data
+  n8n_data:
+    name: whatsapp_n8n_data
+  evolution_instances:
+    name: whatsapp_evolution_instances
+
+# ===================================================================
+# Networks - Service Communication
+# ===================================================================
+networks:
+  evolution-net:
+    name: evolution-net
+    driver: bridge
