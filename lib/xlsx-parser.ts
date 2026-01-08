@@ -30,10 +30,27 @@ export interface ParsedXLSXResult {
  * Parse an XLSX/XLS file and extract headers and data
  *
  * @param file - File object from input or drag-drop
+ * @param maxSizeMB - Maximum file size in MB (default 10MB)
  * @returns Promise with parsed data or error
  */
-export function parseXLSXFile(file: File): Promise<ParsedXLSXResult> {
+export function parseXLSXFile(
+  file: File,
+  maxSizeMB: number = 10
+): Promise<ParsedXLSXResult> {
   return new Promise((resolve) => {
+    // Validate file size (prevent memory issues)
+    const maxSizeBytes = maxSizeMB * 1024 * 1024;
+    if (file.size > maxSizeBytes) {
+      resolve({
+        headers: [],
+        data: [],
+        rawData: [],
+        totalRows: 0,
+        error: `File size (${(file.size / 1024 / 1024).toFixed(2)}MB) exceeds maximum allowed size of ${maxSizeMB}MB.`,
+      });
+      return;
+    }
+
     // Validate file type
     const validTypes = [
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
@@ -85,11 +102,34 @@ export function parseXLSXFile(file: File): Promise<ParsedXLSXResult> {
         }
 
         // Extract headers from first row
-        const headers = (rawData[0] as (string | number)[]).map((h) =>
+        const rawHeaders = (rawData[0] as (string | number)[]).map((h) =>
           String(h || '').trim()
         );
 
-        // Filter out empty headers
+        // Handle duplicate headers by adding suffixes
+        const headers: string[] = [];
+        const headerCounts = new Map<string, number>();
+
+        rawHeaders.forEach((header) => {
+          if (!header) {
+            // Keep empty headers as empty for index mapping
+            headers.push('');
+            return;
+          }
+
+          const count = headerCounts.get(header) || 0;
+          headerCounts.set(header, count + 1);
+
+          if (count > 0) {
+            // Duplicate found - add suffix
+            headers.push(`${header}_${count + 1}`);
+          } else {
+            // First occurrence
+            headers.push(header);
+          }
+        });
+
+        // Filter out empty headers for validation
         const validHeaders = headers.filter((h) => h.length > 0);
 
         if (validHeaders.length === 0) {
