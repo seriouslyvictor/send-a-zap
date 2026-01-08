@@ -181,7 +181,7 @@ export function ConnectModal({ open, onOpenChange, onConnected }: ConnectModalPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-125">
         <DialogHeader>
           <DialogTitle>Connect WhatsApp</DialogTitle>
           <DialogDescription>
@@ -204,11 +204,11 @@ export function ConnectModal({ open, onOpenChange, onConnected }: ConnectModalPr
           <div className="flex justify-center">
             <div className="border-2 border-gray-200 rounded-lg p-4 bg-white">
               {isLoading ? (
-                <div className="w-[300px] h-[300px] flex items-center justify-center">
+                <div className="w-75 h-75 flex items-center justify-center">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
                 </div>
               ) : isConnected ? (
-                <div className="w-[300px] h-[300px] flex items-center justify-center bg-green-50">
+                <div className="w-75 h-75 flex items-center justify-center bg-green-50">
                   <div className="text-center">
                     <div className="text-6xl mb-4">&#10003;</div>
                     <p className="text-lg font-semibold text-green-600">Connected!</p>
@@ -218,10 +218,10 @@ export function ConnectModal({ open, onOpenChange, onConnected }: ConnectModalPr
                 <img
                   src={qrCode}
                   alt="QR Code"
-                  className="w-[300px] h-[300px]"
+                  className="w-75 h-75"
                 />
               ) : (
-                <div className="w-[300px] h-[300px] flex items-center justify-center flex-col gap-2">
+                <div className="w-75 h-75 flex items-center justify-center flex-col gap-2">
                   <p className="text-sm text-gray-500">No QR code available</p>
                   {errorMessage && (
                     <Button variant="outline" size="sm" onClick={handleRefreshQR}>

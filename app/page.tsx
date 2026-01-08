@@ -178,7 +178,7 @@ export default function DashboardPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <div className="space-y-1 min-w-[200px]">
+                    <div className="space-y-1 min-w-50">
                       <div className="flex justify-between text-sm">
                         <span>
                           {campaign.sent}/{campaign.total}
