@@ -1,0 +1,153 @@
+// WhatsApp Automation Campaign Database Schema
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ===================================================================
+// Campaign Status Enum
+// ===================================================================
+enum CampaignStatus {
+  DRAFT
+  PENDING
+  RUNNING
+  PAUSED
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+// ===================================================================
+// Message Status Enum
+// ===================================================================
+enum MessageStatus {
+  PENDING
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+// ===================================================================
+// Campaign Model - Stores campaign configuration and stats
+// ===================================================================
+model Campaign {
+  id              String         @id @default(uuid())
+  name            String         @db.VarChar(255)
+  messageTemplate String         @map("message_template") @db.Text
+  imageUrl        String?        @map("image_url")
+
+  // Batch configuration
+  batchSize       Int            @default(50) @map("batch_size")
+  messageDelay    Int            @default(2) @map("message_delay")     // seconds between messages
+  batchDelay      Int            @default(30) @map("batch_delay")      // seconds between batches
+
+  // Retry configuration
+  autoRetry       Boolean        @default(false) @map("auto_retry")
+  maxRetries      Int            @default(3) @map("max_retries")
+  retryDelay      Int            @default(5) @map("retry_delay")       // minutes
+
+  // Status tracking
+  status          CampaignStatus @default(DRAFT)
+  totalContacts   Int            @default(0) @map("total_contacts")
+  sentCount       Int            @default(0) @map("sent_count")
+  deliveredCount  Int            @default(0) @map("delivered_count")
+  readCount       Int            @default(0) @map("read_count")
+  failedCount     Int            @default(0) @map("failed_count")
+
+  // Timestamps
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  startedAt       DateTime?      @map("started_at")
+  completedAt     DateTime?      @map("completed_at")
+
+  // Column mapping configuration (stored as JSON)
+  columnMapping   Json?          @map("column_mapping")
+
+  // WhatsApp instance used
+  instanceName    String         @default("whatsapp-main") @map("instance_name")
+
+  // n8n execution tracking
+  n8nExecutionId  String?        @map("n8n_execution_id")
+
+  // Relations
+  messages        Message[]
+
+  @@map("campaigns")
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ===================================================================
+// Message Model - Individual messages within a campaign
+// ===================================================================
+model Message {
+  id              String        @id @default(uuid())
+  campaignId      String        @map("campaign_id")
+
+  // Contact information
+  phone           String        @db.VarChar(20)
+  name            String?       @db.VarChar(255)
+  customData      Json?         @map("custom_data")    // Dynamic fields from XLS
+
+  // Rendered message (after placeholder replacement)
+  renderedMessage String?       @map("rendered_message") @db.Text
+
+  // Status tracking
+  status          MessageStatus @default(PENDING)
+  messageId       String?       @map("message_id")     // Evolution API message ID
+
+  // Timestamps
+  createdAt       DateTime      @default(now()) @map("created_at")
+  sentAt          DateTime?     @map("sent_at")
+  deliveredAt     DateTime?     @map("delivered_at")
+  readAt          DateTime?     @map("read_at")
+
+  // Error handling
+  errorMessage    String?       @map("error_message") @db.Text
+  retryCount      Int           @default(0) @map("retry_count")
+  lastRetryAt     DateTime?     @map("last_retry_at")
+
+  // Relations
+  campaign        Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+  @@index([campaignId])
+  @@index([status])
+  @@index([phone])
+  @@index([messageId])
+}
+
+// ===================================================================
+// Template Model - Reusable message templates
+// ===================================================================
+model Template {
+  id           String   @id @default(uuid())
+  name         String   @db.VarChar(255)
+  message      String   @db.Text
+  placeholders String[] // Array of placeholder names used in template
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("templates")
+}
+
+// ===================================================================
+// Blocklist Model - Contacts that should not receive messages
+// ===================================================================
+model Blocklist {
+  id        String   @id @default(uuid())
+  phone     String   @unique @db.VarChar(20)
+  name      String?  @db.VarChar(255)
+  reason    String?  @db.VarChar(255)
+  addedAt   DateTime @default(now()) @map("added_at")
+
+  @@map("blocklist")
+  @@index([phone])
+}
