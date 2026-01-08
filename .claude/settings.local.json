@@ -13,7 +13,11 @@
       "mcp__shadcn__get_add_command_for_items",
       "Bash(npx shadcn@latest add @shadcn/button @shadcn/card @shadcn/dialog @shadcn/table @shadcn/badge @shadcn/progress @shadcn/tabs @shadcn/input @shadcn/textarea @shadcn/select @shadcn/form @shadcn/alert @shadcn/dropdown-menu @shadcn/sheet @shadcn/separator @shadcn/checkbox @shadcn/label @shadcn/scroll-area @shadcn/toast @shadcn/avatar @shadcn/popover @shadcn/command)",
       "Bash(mkdir:*)",
-      "WebFetch(domain:lordicon.com)"
+      "WebFetch(domain:lordicon.com)",
+      "Bash(npm run docker:down:*)",
+      "Bash(npm run docker:up:*)",
+      "Bash(docker exec:*)",
+      "Bash(npm run docker:ps:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

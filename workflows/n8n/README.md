@@ -24,23 +24,23 @@ This folder contains exported n8n workflows for the WhatsApp Automation system.
 2. Click the **...** menu (top right)
 3. Select **Download**
 4. Save to this folder with a descriptive name
-5. Commit the changes
+    5. Commit the changes
 
-## Workflow Architecture
+    ## Workflow Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Next.js Frontend                         │
-│                                                              │
-│  POST /api/campaigns/create                                  │
-│    └─→ Triggers n8n webhook with campaign data              │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   campaign-executor.json                     │
-│                                                              │
-│  1. Receive campaign data (contacts, message, config)       │
+    ```
+    ┌─────────────────────────────────────────────────────────────┐
+    │                     Next.js Frontend                         │
+    │                                                              │
+    │  POST /api/campaigns/create                                  │
+    │    └─→ Triggers n8n webhook with campaign data              │
+    └──────────────────────────┬──────────────────────────────────┘
+                            │
+                            ▼
+    ┌─────────────────────────────────────────────────────────────┐
+    │                   campaign-executor.json                     │
+    │                                                              │
+    │  1. Receive campaign data (contacts, message, config)       │
 │  2. Split contacts into batches                             │
 │  3. For each batch:                                         │
 │     - Call message-sender for each contact                  │
