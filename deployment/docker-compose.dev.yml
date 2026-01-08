@@ -1,0 +1,338 @@
+# ===================================================================
+# WhatsApp Automation - Development Docker Compose
+# ===================================================================
+# Development setup with hot reload and mounted source code
+# Changes to code reflect immediately without rebuilding images
+#
+# Usage:
+#   npm run docker:dev
+#   OR: docker-compose --env-file .env -f deployment/docker-compose.dev.yml up
+#
+# Key Differences from Production:
+# - Next.js runs in dev mode (npm run dev) with hot reload
+# - Source code mounted as volumes (no image rebuild needed)
+# - Faster iteration for development
+# - NOT optimized for production use
+# ===================================================================
+
+services:
+  # ===================================================================
+  # PostgreSQL - Shared Database
+  # ===================================================================
+  postgres:
+    container_name: whatsapp_postgres_dev
+    image: postgres:16
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    env_file:
+      - ../.env
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=whatsapp_automation
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    command: ["postgres", "-c", "max_connections=1000"]
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - evolution-net-dev
+
+  # ===================================================================
+  # pgAdmin - PostgreSQL Web Interface
+  # ===================================================================
+  pgadmin:
+    container_name: whatsapp_pgadmin_dev
+    image: dpage/pgadmin4:latest
+    restart: unless-stopped
+    ports:
+      - "4000:80"
+    env_file:
+      - ../.env
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_EMAIL:-admin@admin.com}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD}
+    volumes:
+      - pgadmin_data_dev:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - evolution-net-dev
+
+  # ===================================================================
+  # Redis - Cache & Message Queue
+  # ===================================================================
+  redis:
+    container_name: whatsapp_redis_dev
+    image: redis:latest
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --port 6379 --appendonly yes
+    volumes:
+      - redis_data_dev:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - evolution-net-dev
+
+  # ===================================================================
+  # n8n - Workflow Automation Engine
+  # ===================================================================
+  n8n:
+    container_name: whatsapp_n8n_dev
+    image: docker.n8n.io/n8nio/n8n:latest
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    env_file:
+      - ../.env
+    environment:
+      # Database configuration
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n
+      - DB_POSTGRESDB_USER=${POSTGRES_USER:-postgres}
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+
+      # n8n configuration
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=${N8N_WEBHOOK_URL:-http://localhost:5678/}
+      - GENERIC_TIMEZONE=${TIMEZONE:-America/Sao_Paulo}
+
+      # Authentication
+      - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE:-false}
+      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
+
+      # Execution settings
+      - EXECUTIONS_PROCESS=main
+      - EXECUTIONS_MODE=regular
+    volumes:
+      - n8n_data_dev:/home/node/.n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - evolution-net-dev
+
+  # ===================================================================
+  # Evolution API - WhatsApp Integration
+  # ===================================================================
+  evolution-api:
+    container_name: whatsapp_evolution_dev
+    image: evoapicloud/evolution-api:homolog
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - ../.env
+    environment:
+      # Server Configuration
+      - SERVER_NAME=${EVOLUTION_SERVER_NAME}
+      - SERVER_TYPE=${EVOLUTION_SERVER_TYPE}
+      - SERVER_PORT=${EVOLUTION_SERVER_PORT}
+      - SERVER_URL=${EVOLUTION_SERVER_URL}
+
+      # Database Configuration
+      - DATABASE_PROVIDER=${EVOLUTION_DATABASE_PROVIDER}
+      - DATABASE_CONNECTION_URI=${EVOLUTION_DATABASE_CONNECTION_URI}
+      - DATABASE_CONNECTION_CLIENT_NAME=${EVOLUTION_DATABASE_CONNECTION_CLIENT_NAME}
+      - DATABASE_SAVE_DATA_INSTANCE=${EVOLUTION_DATABASE_SAVE_DATA_INSTANCE}
+      - DATABASE_SAVE_DATA_NEW_MESSAGE=${EVOLUTION_DATABASE_SAVE_DATA_NEW_MESSAGE}
+      - DATABASE_SAVE_MESSAGE_UPDATE=${EVOLUTION_DATABASE_SAVE_MESSAGE_UPDATE}
+      - DATABASE_SAVE_DATA_CONTACTS=${EVOLUTION_DATABASE_SAVE_DATA_CONTACTS}
+      - DATABASE_SAVE_DATA_CHATS=${EVOLUTION_DATABASE_SAVE_DATA_CHATS}
+      - DATABASE_SAVE_DATA_LABELS=${EVOLUTION_DATABASE_SAVE_DATA_LABELS}
+      - DATABASE_SAVE_DATA_HISTORIC=${EVOLUTION_DATABASE_SAVE_DATA_HISTORIC}
+      - DATABASE_SAVE_IS_ON_WHATSAPP=${EVOLUTION_DATABASE_SAVE_IS_ON_WHATSAPP}
+      - DATABASE_SAVE_IS_ON_WHATSAPP_DAYS=${EVOLUTION_DATABASE_SAVE_IS_ON_WHATSAPP_DAYS}
+      - DATABASE_DELETE_MESSAGE=${EVOLUTION_DATABASE_DELETE_MESSAGE}
+
+      # Cache Configuration
+      - CACHE_REDIS_ENABLED=${EVOLUTION_CACHE_REDIS_ENABLED}
+      - CACHE_REDIS_URI=${EVOLUTION_CACHE_REDIS_URI}
+      - CACHE_REDIS_TTL=${EVOLUTION_CACHE_REDIS_TTL}
+      - CACHE_REDIS_PREFIX_KEY=${EVOLUTION_CACHE_REDIS_PREFIX_KEY}
+      - CACHE_REDIS_SAVE_INSTANCES=${EVOLUTION_CACHE_REDIS_SAVE_INSTANCES}
+      - CACHE_LOCAL_ENABLED=${EVOLUTION_CACHE_LOCAL_ENABLED}
+
+      # Authentication
+      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY}
+      - AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES=${EVOLUTION_AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES}
+
+      # Logging
+      - LOG_LEVEL=${EVOLUTION_LOG_LEVEL}
+      - LOG_COLOR=${EVOLUTION_LOG_COLOR}
+      - LOG_BAILEYS=${EVOLUTION_LOG_BAILEYS}
+
+      # Session Configuration
+      - CONFIG_SESSION_PHONE_CLIENT=${EVOLUTION_CONFIG_SESSION_PHONE_CLIENT}
+      - CONFIG_SESSION_PHONE_NAME=${EVOLUTION_CONFIG_SESSION_PHONE_NAME}
+      - CONFIG_SESSION_PHONE_VERSION=${EVOLUTION_CONFIG_SESSION_PHONE_VERSION}
+
+      # QR Code Configuration
+      - QRCODE_LIMIT=${EVOLUTION_QRCODE_LIMIT}
+      - QRCODE_COLOR=${EVOLUTION_QRCODE_COLOR}
+
+      # CORS Settings
+      - CORS_ORIGIN=${EVOLUTION_CORS_ORIGIN}
+      - CORS_METHODS=${EVOLUTION_CORS_METHODS}
+      - CORS_CREDENTIALS=${EVOLUTION_CORS_CREDENTIALS}
+
+      # Instance Settings
+      - DEL_INSTANCE=${EVOLUTION_DEL_INSTANCE}
+      - EVENT_EMITTER_MAX_LISTENERS=${EVOLUTION_EVENT_EMITTER_MAX_LISTENERS}
+
+      # Telemetry
+      - TELEMETRY_ENABLED=${EVOLUTION_TELEMETRY_ENABLED}
+      - TELEMETRY_URL=${EVOLUTION_TELEMETRY_URL}
+
+      # Language
+      - LANGUAGE=${EVOLUTION_LANGUAGE}
+
+      # Webhook Configuration
+      - WEBHOOK_GLOBAL_ENABLED=${EVOLUTION_WEBHOOK_GLOBAL_ENABLED}
+      - WEBHOOK_GLOBAL_URL=${EVOLUTION_WEBHOOK_GLOBAL_URL}
+      - WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS=${EVOLUTION_WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS}
+      - WEBHOOK_EVENTS_QRCODE_UPDATED=${EVOLUTION_WEBHOOK_EVENTS_QRCODE_UPDATED}
+      - WEBHOOK_EVENTS_MESSAGES_UPSERT=${EVOLUTION_WEBHOOK_EVENTS_MESSAGES_UPSERT}
+      - WEBHOOK_EVENTS_MESSAGES_UPDATE=${EVOLUTION_WEBHOOK_EVENTS_MESSAGES_UPDATE}
+      - WEBHOOK_EVENTS_MESSAGES_DELETE=${EVOLUTION_WEBHOOK_EVENTS_MESSAGES_DELETE}
+      - WEBHOOK_EVENTS_SEND_MESSAGE=${EVOLUTION_WEBHOOK_EVENTS_SEND_MESSAGE}
+      - WEBHOOK_EVENTS_CONNECTION_UPDATE=${EVOLUTION_WEBHOOK_EVENTS_CONNECTION_UPDATE}
+      - WEBHOOK_REQUEST_TIMEOUT_MS=${EVOLUTION_WEBHOOK_REQUEST_TIMEOUT_MS}
+      - WEBHOOK_RETRY_MAX_ATTEMPTS=${EVOLUTION_WEBHOOK_RETRY_MAX_ATTEMPTS}
+      - WEBHOOK_RETRY_INITIAL_DELAY_SECONDS=${EVOLUTION_WEBHOOK_RETRY_INITIAL_DELAY_SECONDS}
+      - WEBHOOK_RETRY_USE_EXPONENTIAL_BACKOFF=${EVOLUTION_WEBHOOK_RETRY_USE_EXPONENTIAL_BACKOFF}
+
+      # WhatsApp Business API
+      - WA_BUSINESS_TOKEN_WEBHOOK=${EVOLUTION_WA_BUSINESS_TOKEN_WEBHOOK}
+      - WA_BUSINESS_URL=${EVOLUTION_WA_BUSINESS_URL}
+      - WA_BUSINESS_VERSION=${EVOLUTION_WA_BUSINESS_VERSION}
+      - WA_BUSINESS_LANGUAGE=${EVOLUTION_WA_BUSINESS_LANGUAGE}
+
+      # Integrations
+      - TYPEBOT_ENABLED=${EVOLUTION_TYPEBOT_ENABLED}
+      - CHATWOOT_ENABLED=${EVOLUTION_CHATWOOT_ENABLED}
+      - OPENAI_ENABLED=${EVOLUTION_OPENAI_ENABLED}
+      - DIFY_ENABLED=${EVOLUTION_DIFY_ENABLED}
+      - N8N_ENABLED=${EVOLUTION_N8N_ENABLED}
+      - EVOAI_ENABLED=${EVOLUTION_EVOAI_ENABLED}
+
+      # Message Queues
+      - RABBITMQ_ENABLED=${EVOLUTION_RABBITMQ_ENABLED}
+      - SQS_ENABLED=${EVOLUTION_SQS_ENABLED}
+      - KAFKA_ENABLED=${EVOLUTION_KAFKA_ENABLED}
+
+      # Websocket
+      - WEBSOCKET_ENABLED=${EVOLUTION_WEBSOCKET_ENABLED}
+      - WEBSOCKET_GLOBAL_EVENTS=${EVOLUTION_WEBSOCKET_GLOBAL_EVENTS}
+
+      # S3 Storage
+      - S3_ENABLED=${EVOLUTION_S3_ENABLED}
+
+      # Prometheus Metrics
+      - PROMETHEUS_METRICS=${EVOLUTION_PROMETHEUS_METRICS}
+    volumes:
+      - evolution_instances_dev:/evolution/instances
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - evolution-net-dev
+
+  # ===================================================================
+  # Next.js - Frontend Application (DEVELOPMENT MODE)
+  # ===================================================================
+  # This service mounts source code and runs npm run dev
+  # Changes to code reflect immediately with hot reload
+  # ===================================================================
+  nextjs:
+    container_name: whatsapp_nextjs_dev
+    image: node:20-alpine
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "npm install && npm run dev"
+    ports:
+      - "3000:3000"
+    env_file:
+      - ../.env
+    environment:
+      - NODE_ENV=development
+      - N8N_API_URL=http://n8n:5678
+      - N8N_API_KEY=${N8N_API_KEY}
+      - EVOLUTION_API_URL=http://evolution-api:8080
+      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
+      # Enable hot reload in container
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
+    volumes:
+      # Mount source code - changes reflect immediately
+      - ../:/app
+      # Exclude node_modules from host (use container's node_modules)
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      n8n:
+        condition: service_healthy
+      evolution-api:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    networks:
+      - evolution-net-dev
+
+# ===================================================================
+# Volumes - Persistent Data Storage (Development)
+# ===================================================================
+# SHARED WITH PRODUCTION: Using same volumes as production mode
+# This ensures your data (WhatsApp instances, workflows, database)
+# persists across development and production modes
+# ===================================================================
+volumes:
+  postgres_data_dev:
+    name: whatsapp_postgres_data
+    external: true
+  pgadmin_data_dev:
+    name: whatsapp_pgadmin_data
+    external: true
+  redis_data_dev:
+    name: whatsapp_redis_data
+    external: true
+  n8n_data_dev:
+    name: whatsapp_n8n_data
+    external: true
+  evolution_instances_dev:
+    name: whatsapp_evolution_instances
+    external: true
+
+# ===================================================================
+# Networks - Service Communication
+# ===================================================================
+networks:
+  evolution-net-dev:
+    name: evolution-net-dev
+    driver: bridge
