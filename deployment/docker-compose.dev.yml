@@ -113,15 +113,16 @@ services:
       - N8N_PROTOCOL=http
       - WEBHOOK_URL=${N8N_WEBHOOK_URL:-http://localhost:5678/}
       - GENERIC_TIMEZONE=${TIMEZONE:-America/Sao_Paulo}
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
 
       # Authentication
       - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE:-false}
       - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
       - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
-
-      # Execution settings
-      - EXECUTIONS_PROCESS=main
-      - EXECUTIONS_MODE=regular
+      
+      #Evolution-Api
+      - EVOLUTION_API_URL=http://evolution-api:8080
+      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
     volumes:
       - n8n_data_dev:/home/node/.n8n
     depends_on:
@@ -282,8 +283,10 @@ services:
       - ../.env
     environment:
       - NODE_ENV=development
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/whatsapp_automation?schema=public
       - N8N_API_URL=http://n8n:5678
       - N8N_API_KEY=${N8N_API_KEY}
+      - N8N_WEBHOOK_URL=http://n8n:5678/webhook
       - EVOLUTION_API_URL=http://evolution-api:8080
       - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
       # Enable hot reload in container

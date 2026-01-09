@@ -76,11 +76,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Update campaign status to PENDING first
+    // Update campaign status to RUNNING immediately
+    // (n8n workflow checks for RUNNING status)
     await prisma.campaign.update({
       where: { id },
       data: {
-        status: CampaignStatus.PENDING,
+        status: CampaignStatus.RUNNING,
         startedAt: new Date(),
       },
     });
@@ -156,11 +157,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Update campaign to RUNNING with n8n execution ID
+    // Store n8n execution ID (status already set to RUNNING above)
     const updatedCampaign = await prisma.campaign.update({
       where: { id },
       data: {
-        status: CampaignStatus.RUNNING,
         n8nExecutionId: n8nExecutionId,
       },
     });
