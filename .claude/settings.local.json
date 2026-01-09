@@ -1,7 +1,6 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:docs.evoapicloud.com)",
       "mcp__n8n-mcp__n8n_create_workflow",
       "Bash(git init:*)",
       "Bash(git add:*)",
@@ -11,9 +10,7 @@
       "Bash(docker logs:*)",
       "mcp__shadcn__get_project_registries",
       "mcp__shadcn__get_add_command_for_items",
-      "Bash(npx shadcn@latest add @shadcn/button @shadcn/card @shadcn/dialog @shadcn/table @shadcn/badge @shadcn/progress @shadcn/tabs @shadcn/input @shadcn/textarea @shadcn/select @shadcn/form @shadcn/alert @shadcn/dropdown-menu @shadcn/sheet @shadcn/separator @shadcn/checkbox @shadcn/label @shadcn/scroll-area @shadcn/toast @shadcn/avatar @shadcn/popover @shadcn/command)",
       "Bash(mkdir:*)",
-      "WebFetch(domain:lordicon.com)",
       "Bash(npm run docker:down:*)",
       "Bash(npm run docker:up:*)",
       "Bash(docker exec:*)",
@@ -22,7 +19,6 @@
       "mcp__n8n-mcp__search_nodes",
       "mcp__n8n-mcp__get_node",
       "Bash(npm run test:run:*)",
-      "WebFetch(domain:github.com)",
       "Bash(npm install)"
     ]
   },
@@ -30,7 +26,5 @@
   "enabledMcpjsonServers": [
     "n8n-mcp"
   ],
-  "enabledPlugins": {
-    "n8n-mcp-skills@n8n-mcp-skills": true
-  }
+  "enabledPlugins": {}
 }
