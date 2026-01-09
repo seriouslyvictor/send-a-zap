@@ -3,14 +3,14 @@
 import { useRef } from 'react';
 import { useTheme } from 'next-themes';
 import { Player } from '@lordicon/react';
-import ICON from './pie-chart.json';
+import ICON from './inbox.json';
 
-interface DashboardIconProps {
+interface WhatsAppIconProps {
   size?: number;
-  trigger?: 'hover' | 'click' | 'loop';
+  trigger?: 'hover' | 'click' | 'loop' | 'loop-on-hover';
 }
 
-export function DashboardIcon({ size = 24, trigger = 'hover' }: DashboardIconProps) {
+export function WhatsAppIcon({ size = 32, trigger = 'loop' }: WhatsAppIconProps) {
   const playerRef = useRef<Player>(null);
   const { theme } = useTheme();
 
@@ -22,7 +22,7 @@ export function DashboardIcon({ size = 24, trigger = 'hover' }: DashboardIconPro
 
   return (
     <div
-      onMouseEnter={trigger === 'hover' ? handleTrigger : undefined}
+      onMouseEnter={trigger === 'hover' || trigger === 'loop-on-hover' ? handleTrigger : undefined}
       onClick={trigger === 'click' ? handleTrigger : undefined}
       className="inline-flex items-center justify-center"
     >
@@ -30,8 +30,13 @@ export function DashboardIcon({ size = 24, trigger = 'hover' }: DashboardIconPro
         ref={playerRef}
         icon={ICON}
         size={size}
+        loop={trigger === 'loop'}
         colorize={theme === 'dark' ? '#ffffff' : undefined}
-        onComplete={() => playerRef.current?.goToFirstFrame()}
+        onComplete={() => {
+          if (trigger !== 'loop') {
+            playerRef.current?.goToFirstFrame();
+          }
+        }}
       />
     </div>
   );

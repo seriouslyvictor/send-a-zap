@@ -3,14 +3,14 @@
 import { useRef } from 'react';
 import { useTheme } from 'next-themes';
 import { Player } from '@lordicon/react';
-import ICON from './pie-chart.json';
+import ICON from './check-list.json';
 
-interface DashboardIconProps {
+interface CheckListIconProps {
   size?: number;
   trigger?: 'hover' | 'click' | 'loop';
 }
 
-export function DashboardIcon({ size = 24, trigger = 'hover' }: DashboardIconProps) {
+export function CheckListIcon({ size = 24, trigger = 'hover'}: CheckListIconProps) {
   const playerRef = useRef<Player>(null);
   const { theme } = useTheme();
 

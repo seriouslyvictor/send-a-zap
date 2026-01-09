@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from 'react';
+import { useTheme } from 'next-themes';
 import { Player } from '@lordicon/react';
 import ICON from './mail.json';
 
@@ -11,6 +12,7 @@ interface MailIconProps {
 
 export function MailIcon({ size = 24, trigger = 'hover' }: MailIconProps) {
   const playerRef = useRef<Player>(null);
+  const { theme } = useTheme();
 
   const handleTrigger = () => {
     if (trigger === 'hover' || trigger === 'click') {
@@ -28,6 +30,7 @@ export function MailIcon({ size = 24, trigger = 'hover' }: MailIconProps) {
         ref={playerRef}
         icon={ICON}
         size={size}
+        colorize={theme === 'dark' ? '#ffffff' : undefined}
         onComplete={() => playerRef.current?.goToFirstFrame()}
       />
     </div>
