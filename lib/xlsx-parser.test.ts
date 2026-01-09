@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import * as XLSX from 'xlsx';
+import * as ExcelJS from 'exceljs';
 import {
   parseXLSXFile,
   getPreviewData,
@@ -9,19 +9,23 @@ import {
 /**
  * Helper function to create a mock Excel file from data
  */
-function createMockXLSXFile(
+async function createMockXLSXFile(
   data: (string | number)[][],
   filename: string = 'test.xlsx',
   mimeType: string = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-): File {
+): Promise<File> {
   // Create a workbook
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(data);
-  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Sheet1');
 
-  // Convert to binary
-  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-  const blob = new Blob([wbout], { type: mimeType });
+  // Add rows
+  data.forEach((row) => {
+    worksheet.addRow(row);
+  });
+
+  // Convert to binary buffer
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: mimeType });
 
   // Create File from Blob
   return new File([blob], filename, { type: mimeType });
@@ -56,7 +60,7 @@ describe('parseXLSXFile', () => {
     });
 
     it('should accept files within default 10MB limit', async () => {
-      const smallFile = createMockXLSXFile([
+      const smallFile = await createMockXLSXFile([
         ['Name', 'Email'],
         ['John', 'john@example.com'],
       ]);
@@ -86,7 +90,7 @@ describe('parseXLSXFile', () => {
 
   describe('Duplicate Header Handling', () => {
     it('should handle duplicate headers by adding suffixes', async () => {
-      const file = createMockXLSXFile([
+      const file = await createMockXLSXFile([
         ['Name', 'Email', 'Name', 'Name'],
         ['John', 'john@example.com', 'Doe', 'Middle'],
       ]);
@@ -104,7 +108,7 @@ describe('parseXLSXFile', () => {
     });
 
     it('should preserve all data when headers are duplicated', async () => {
-      const file = createMockXLSXFile([
+      const file = await createMockXLSXFile([
         ['ID', 'Value', 'ID', 'Value'],
         ['1', 'A', '2', 'B'],
         ['3', 'C', '4', 'D'],
@@ -128,7 +132,7 @@ describe('parseXLSXFile', () => {
     });
 
     it('should handle multiple duplicate occurrences', async () => {
-      const file = createMockXLSXFile([
+      const file = await createMockXLSXFile([
         ['A', 'A', 'A', 'B', 'A'],
         ['1', '2', '3', '4', '5'],
       ]);
@@ -148,7 +152,7 @@ describe('parseXLSXFile', () => {
 
   describe('Valid File Parsing', () => {
     it('should parse a valid XLSX file correctly', async () => {
-      const file = createMockXLSXFile([
+      const file = await createMockXLSXFile([
         ['Name', 'Age', 'Email'],
         ['Alice', 30, 'alice@example.com'],
         ['Bob', 25, 'bob@example.com'],
@@ -168,7 +172,7 @@ describe('parseXLSXFile', () => {
     });
 
     it('should convert all values to strings', async () => {
-      const file = createMockXLSXFile([
+      const file = await createMockXLSXFile([
         ['Text', 'Number', 'Boolean'],
         ['Hello', 123, true],
       ]);
@@ -183,7 +187,7 @@ describe('parseXLSXFile', () => {
     });
 
     it('should trim whitespace from headers and values', async () => {
-      const file = createMockXLSXFile([
+      const file = await createMockXLSXFile([
         ['  Name  ', '  Email  '],
         ['  John  ', '  john@example.com  '],
       ]);
@@ -198,7 +202,7 @@ describe('parseXLSXFile', () => {
     });
 
     it('should skip completely empty rows', async () => {
-      const file = createMockXLSXFile([
+      const file = await createMockXLSXFile([
         ['Name', 'Email'],
         ['John', 'john@example.com'],
         ['', ''], // Empty row
@@ -229,7 +233,7 @@ describe('parseXLSXFile', () => {
 
     it('should accept files with valid extensions even if MIME type is wrong', async () => {
       // Some systems don't set correct MIME types
-      const file = createMockXLSXFile(
+      const file = await createMockXLSXFile(
         [
           ['Name', 'Email'],
           ['John', 'john@example.com'],
@@ -248,7 +252,7 @@ describe('parseXLSXFile', () => {
 
   describe('Empty File Handling', () => {
     it('should handle empty files', async () => {
-      const file = createMockXLSXFile([]);
+      const file = await createMockXLSXFile([]);
 
       const result = await parseXLSXFile(file);
 
@@ -256,7 +260,7 @@ describe('parseXLSXFile', () => {
     });
 
     it('should handle files with only headers', async () => {
-      const file = createMockXLSXFile([['Name', 'Email']]);
+      const file = await createMockXLSXFile([['Name', 'Email']]);
 
       const result = await parseXLSXFile(file);
 
@@ -267,7 +271,7 @@ describe('parseXLSXFile', () => {
     });
 
     it('should reject files with no valid headers', async () => {
-      const file = createMockXLSXFile([
+      const file = await createMockXLSXFile([
         ['', '', ''], // All empty headers
         ['data1', 'data2', 'data3'],
       ]);
@@ -280,7 +284,7 @@ describe('parseXLSXFile', () => {
 
   describe('Edge Cases', () => {
     it('should handle mixed empty and valid headers', async () => {
-      const file = createMockXLSXFile([
+      const file = await createMockXLSXFile([
         ['Name', '', 'Email', ''],
         ['John', 'ignored', 'john@example.com', 'ignored'],
       ]);
@@ -295,7 +299,7 @@ describe('parseXLSXFile', () => {
     });
 
     it('should handle null and undefined values', async () => {
-      const file = createMockXLSXFile([
+      const file = await createMockXLSXFile([
         ['Name', 'Email'],
         ['John', null as any],
         [undefined as any, 'jane@example.com'],

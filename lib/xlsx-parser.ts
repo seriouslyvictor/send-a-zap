@@ -1,14 +1,14 @@
 /**
  * XLSX Parser Utility
  *
- * Client-side utility for parsing Excel files using SheetJS.
+ * Client-side utility for parsing Excel files using ExcelJS.
  * Designed to be used in React components for file uploads.
  *
  * Usage:
  *   const { headers, data, error } = await parseXLSXFile(file);
  */
 
-import * as XLSX from 'xlsx';
+import * as ExcelJS from 'exceljs';
 
 /**
  * Result of parsing an XLSX file
@@ -73,29 +73,31 @@ export function parseXLSXFile(
 
     const reader = new FileReader();
 
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const arrayBuffer = e.target?.result;
-        if (!arrayBuffer) {
+        if (!arrayBuffer || !(arrayBuffer instanceof ArrayBuffer)) {
           throw new Error('Failed to read file');
         }
 
-        // Parse workbook
-        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        // Parse workbook using ExcelJS
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(arrayBuffer);
 
         // Get first sheet
-        const sheetName = workbook.SheetNames[0];
-        if (!sheetName) {
+        const worksheet = workbook.worksheets[0];
+        if (!worksheet) {
           throw new Error('No sheets found in the file');
         }
 
-        const sheet = workbook.Sheets[sheetName];
-
         // Convert to 2D array (raw data)
-        const rawData = XLSX.utils.sheet_to_json<(string | number | null)[]>(
-          sheet,
-          { header: 1, defval: '' }
-        );
+        const rawData: (string | number | null)[][] = [];
+        worksheet.eachRow({ includeEmpty: true }, (row) => {
+          // ExcelJS row.values is 1-indexed, index 0 is undefined
+          const values = row.values as (string | number | null)[];
+          // Slice to remove the undefined at index 0
+          rawData.push(values.slice(1));
+        });
 
         if (rawData.length === 0) {
           throw new Error('File is empty');
