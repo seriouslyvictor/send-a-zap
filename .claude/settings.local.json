@@ -17,7 +17,13 @@
       "Bash(npm run docker:down:*)",
       "Bash(npm run docker:up:*)",
       "Bash(docker exec:*)",
-      "Bash(npm run docker:ps:*)"
+      "Bash(npm run docker:ps:*)",
+      "mcp__n8n-mcp__tools_documentation",
+      "mcp__n8n-mcp__search_nodes",
+      "mcp__n8n-mcp__get_node",
+      "Bash(npm run test:run:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(npm install)"
     ]
   },
   "enableAllProjectMcpServers": true,

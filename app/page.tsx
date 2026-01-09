@@ -13,6 +13,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Upload, Edit, BarChart, Pause, X, Eye } from "lucide-react";
+import { MailIcon } from "@/components/icons/mail-icon";
+import { CheckIcon } from "@/components/icons/check-icon";
+import { CheckListIcon } from "@/components/icons/check-list-icon";
+import { CrossIcon } from "@/components/icons/cross-icon";
 import { UploadContactsModal } from "@/components/modals/upload-contacts-modal";
 import { CampaignWizard } from "@/components/modals/campaign-wizard";
 import { CampaignDetailsModal } from "@/components/modals/campaign-details-modal";
@@ -26,28 +31,28 @@ export default function DashboardPage() {
   // Mock data for demonstration
   const stats = [
     {
-      icon: "📨",
+      icon: <MailIcon size={20} />,
       title: "Sent Today",
       value: "1,234",
       subtitle: "↑ 12% vs yesterday",
       trend: "up",
     },
     {
-      icon: "✅",
+      icon: <CheckIcon size={20} />,
       title: "Delivered",
       value: "1,156",
       subtitle: "94% delivery rate",
       trend: "up",
     },
     {
-      icon: "📖",
+      icon: <CheckListIcon size={20} />,
       title: "Read",
       value: "892",
       subtitle: "72% read rate",
       trend: "neutral",
     },
     {
-      icon: "❌",
+      icon: <CrossIcon size={20} />,
       title: "Failed",
       value: "78",
       subtitle: "6% failure rate",
@@ -111,21 +116,21 @@ export default function DashboardPage() {
         {stats.map((stat, index) => (
           <Card key={index}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
+              <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-300 flex items-center gap-2">
                 {stat.icon} {stat.title}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-gray-900">
+              <div className="text-3xl font-bold text-gray-900 dark:text-white">
                 {stat.value}
               </div>
               <p
                 className={`text-xs mt-1 ${
                   stat.trend === "up"
-                    ? "text-green-600"
+                    ? "text-green-600 dark:text-green-400"
                     : stat.trend === "down"
-                    ? "text-red-600"
-                    : "text-gray-500"
+                    ? "text-red-600 dark:text-red-400"
+                    : "text-gray-500 dark:text-gray-400"
                 }`}
               >
                 {stat.subtitle}
@@ -143,12 +148,17 @@ export default function DashboardPage() {
         <CardContent>
           <div className="flex gap-3">
             <Button variant="default" onClick={() => setUploadContactsOpen(true)}>
-              📤 Upload Contacts
+              <Upload className="w-4 h-4 mr-2" />
+              Upload Contacts
             </Button>
             <Button variant="default" onClick={() => setCampaignWizardOpen(true)}>
-              ✏️ New Campaign
+              <Edit className="w-4 h-4 mr-2" />
+              New Campaign
             </Button>
-            <Button variant="outline">📊 View Reports</Button>
+            <Button variant="outline">
+              <BarChart className="w-4 h-4 mr-2" />
+              View Reports
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -171,7 +181,7 @@ export default function DashboardPage() {
             <TableBody>
               {activeCampaigns.map((campaign) => (
                 <TableRow key={campaign.id}>
-                  <TableCell className="font-medium">{campaign.name}</TableCell>
+                  <TableCell className="font-medium dark:text-gray-200">{campaign.name}</TableCell>
                   <TableCell>
                     <Badge variant="default" className="bg-green-500">
                       {campaign.status}
@@ -192,15 +202,16 @@ export default function DashboardPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      <Button variant="ghost" size="sm">
-                        ⏸
+                      <Button variant="ghost" size="sm" title="Pause campaign">
+                        <Pause className="w-4 h-4" />
                       </Button>
-                      <Button variant="ghost" size="sm">
-                        ✖
+                      <Button variant="ghost" size="sm" title="Stop campaign">
+                        <X className="w-4 h-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
+                        title="View details"
                         onClick={() => {
                           setSelectedCampaign({
                             id: campaign.id.toString(),
@@ -227,7 +238,7 @@ export default function DashboardPage() {
                           setCampaignDetailsOpen(true);
                         }}
                       >
-                        👁
+                        <Eye className="w-4 h-4" />
                       </Button>
                     </div>
                   </TableCell>
@@ -263,22 +274,22 @@ export default function DashboardPage() {
             </TableHeader>
             <TableBody>
               {recentCampaigns.map((campaign) => (
-                <TableRow key={campaign.id} className="cursor-pointer hover:bg-gray-50">
-                  <TableCell className="font-medium">{campaign.name}</TableCell>
+                <TableRow key={campaign.id} className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <TableCell className="font-medium dark:text-gray-200">{campaign.name}</TableCell>
                   <TableCell className="text-right">{campaign.sent}</TableCell>
                   <TableCell className="text-right">
                     {campaign.delivered}
                   </TableCell>
                   <TableCell className="text-right">{campaign.read}</TableCell>
-                  <TableCell className="text-right text-red-600">
+                  <TableCell className="text-right text-red-600 dark:text-red-400">
                     {campaign.failed}
                   </TableCell>
-                  <TableCell className="text-right text-gray-500">
+                  <TableCell className="text-right text-gray-500 dark:text-gray-400">
                     {campaign.date}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="sm">
-                      📊
+                    <Button variant="ghost" size="sm" title="View report">
+                      <BarChart className="w-4 h-4" />
                     </Button>
                   </TableCell>
                 </TableRow>

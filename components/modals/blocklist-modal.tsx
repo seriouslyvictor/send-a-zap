@@ -88,7 +88,7 @@ export function BlocklistModal({ open, onOpenChange }: BlocklistModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px]">
+      <DialogContent className="sm:max-w-175">
         <DialogHeader>
           <DialogTitle>Blocklist Management</DialogTitle>
         </DialogHeader>
@@ -113,7 +113,7 @@ export function BlocklistModal({ open, onOpenChange }: BlocklistModalProps) {
           </div>
 
           {/* Blocklist Table */}
-          <div className="border rounded-lg overflow-hidden max-h-[400px] overflow-y-auto">
+          <div className="border rounded-lg overflow-hidden max-h-100 overflow-y-auto">
             <Table>
               <TableHeader>
                 <TableRow>

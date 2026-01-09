@@ -120,7 +120,7 @@ export function UploadContactsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px]">
+      <DialogContent className="sm:max-w-175">
         <DialogHeader>
           <DialogTitle>Upload Contacts</DialogTitle>
         </DialogHeader>

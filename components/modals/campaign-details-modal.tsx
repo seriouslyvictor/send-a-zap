@@ -90,7 +90,7 @@ export function CampaignDetailsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-200 max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Campaign Details: {campaign.name}</DialogTitle>
         </DialogHeader>
@@ -193,7 +193,7 @@ export function CampaignDetailsModal({
               <h3 className="text-sm font-semibold text-gray-900">
                 Failed Messages ({campaign.failedMessages.length}):
               </h3>
-              <div className="border rounded-lg overflow-hidden max-h-[200px] overflow-y-auto">
+              <div className="border rounded-lg overflow-hidden max-h-50 overflow-y-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
