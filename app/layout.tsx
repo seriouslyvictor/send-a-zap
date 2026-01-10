@@ -1,15 +1,25 @@
 'use client';
-import { ThemeProvider } from "@/components/theme-provider"
+
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+import { ChevronDown } from 'lucide-react';
+
+import { ThemeProvider } from "@/components/theme-provider";
+import { AnimatedThemeToggle } from "@/components/ui/animated-theme-toggle";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
+import { ConnectionStatus } from '@/components/connection-status';
+import { ConnectModal } from '@/components/modals/connect-modal';
 import { DashboardIcon } from '@/components/icons/dashboard-icon';
 import { MailIcon } from '@/components/icons/mail-icon';
 import { FileIcon } from '@/components/icons/file-icon';
-import { ConnectionStatus } from '@/components/connection-status';
-import { ConnectModal } from '@/components/modals/connect-modal';
-import { ThemeToggle } from '@/components/theme-toggle';
 import { WhatsAppIcon } from '@/components/icons/whatsapp-icon';
+import "./globals.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -21,18 +31,24 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const NAV_BUTTON_STYLES = {
+  base: "px-4 py-2 text-sm font-medium flex items-center gap-2",
+  active: "text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400",
+  inactive: "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
-}>) {
+}>): React.ReactElement {
+  const router = useRouter();
   const [connectModalOpen, setConnectModalOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  const handleConnected = () => {
-    // Trigger immediate refresh of connection status
+  function handleConnected(): void {
     setRefreshTrigger(prev => prev + 1);
-  };
+  }
 
   return (
     <html lang="pt-br" suppressHydrationWarning>
@@ -58,25 +74,43 @@ export default function RootLayout({
                     </h1>
                   </div>
 
-                  {/* Navigation Tabs */}
+                  {/* Navigation */}
                   <nav className="flex items-center gap-6">
-                    <button className="px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 flex items-center gap-2">
+                    <button
+                      onClick={() => router.push('/')}
+                      className={`${NAV_BUTTON_STYLES.base} ${NAV_BUTTON_STYLES.active} cursor-pointer`}
+                    >
                       <DashboardIcon size={20} />
                       Dashboard
                     </button>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white flex items-center gap-2">
-                      <MailIcon size={20} />
-                      New Campaign
-                    </button>
-                    <button className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white flex items-center gap-2">
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className={`${NAV_BUTTON_STYLES.base} ${NAV_BUTTON_STYLES.inactive}`}>
+                          <MailIcon size={20} />
+                          Convocacoes
+                          <ChevronDown size={16} />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuItem onClick={() => router.push('/campaigns')}>
+                          Listar Convocacoes
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => router.push('/')}>
+                          Nova Convocacao
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    <button className={`${NAV_BUTTON_STYLES.base} ${NAV_BUTTON_STYLES.inactive}`}>
                       <FileIcon size={20} />
-                      Templates
+                      Modelos
                     </button>
                   </nav>
 
                   {/* Right Side: Connection Status & Theme Toggle */}
                   <div className="flex items-center gap-3">
-                    <ThemeToggle />
+                    <AnimatedThemeToggle />
                     <ConnectionStatus
                       onConnectClick={() => setConnectModalOpen(true)}
                       refreshTrigger={refreshTrigger}

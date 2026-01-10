@@ -1,14 +1,16 @@
 /**
  * Campaign API Routes
  *
- * GET  /api/campaigns - List all campaigns with pagination
+ * GET  /api/campaigns - List all campaigns with pagination and date filtering
  * POST /api/campaigns - Create a new campaign with messages
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { CampaignStatus, MessageStatus } from "@prisma/client";
-import { validatePhone, normalizePhone } from "@/lib/phone-validator";
+
+import { prisma } from "@/lib/prisma";
+import { validatePhone } from "@/lib/phone-validator";
 import { renderMessage } from "@/lib/message-renderer";
 
 /**
@@ -35,37 +37,59 @@ interface CreateCampaignRequest {
   };
 }
 
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 100;
+
+function buildDateRangeFilter(
+  dateFrom: string | null,
+  dateTo: string | null
+): Prisma.DateTimeFilter | undefined {
+  if (!dateFrom && !dateTo) return undefined;
+
+  const filter: Prisma.DateTimeFilter = {};
+
+  if (dateFrom) {
+    filter.gte = new Date(dateFrom);
+  }
+
+  if (dateTo) {
+    const endDate = new Date(dateTo);
+    endDate.setDate(endDate.getDate() + 1);
+    filter.lt = endDate;
+  }
+
+  return filter;
+}
+
 /**
  * GET /api/campaigns
- * List all campaigns with optional pagination and filtering
+ * List campaigns with optional pagination, status filter, and date range
  */
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get("page") || "1", 10);
-    const limit = parseInt(searchParams.get("limit") || "20", 10);
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, parseInt(searchParams.get("limit") || String(DEFAULT_PAGE_SIZE), 10)));
     const status = searchParams.get("status") as CampaignStatus | null;
+    const dateFrom = searchParams.get("dateFrom");
+    const dateTo = searchParams.get("dateTo");
 
-    // Validate pagination
-    const validPage = Math.max(1, page);
-    const validLimit = Math.min(100, Math.max(1, limit));
-    const skip = (validPage - 1) * validLimit;
+    const skip = (page - 1) * limit;
 
-    // Build where clause
-    const where = status ? { status } : {};
+    const where: Prisma.CampaignWhereInput = {
+      ...(status && { status }),
+      ...(buildDateRangeFilter(dateFrom, dateTo) && {
+        createdAt: buildDateRangeFilter(dateFrom, dateTo),
+      }),
+    };
 
-    // Fetch campaigns with counts
     const [campaigns, total] = await Promise.all([
       prisma.campaign.findMany({
         where,
         orderBy: { createdAt: "desc" },
         skip,
-        take: validLimit,
-        include: {
-          _count: {
-            select: { messages: true },
-          },
-        },
+        take: limit,
+        include: { _count: { select: { messages: true } } },
       }),
       prisma.campaign.count({ where }),
     ]);
@@ -74,10 +98,10 @@ export async function GET(request: NextRequest) {
       success: true,
       data: campaigns,
       pagination: {
-        page: validPage,
-        limit: validLimit,
+        page,
+        limit,
         total,
-        totalPages: Math.ceil(total / validLimit),
+        totalPages: Math.ceil(total / limit),
       },
     });
   } catch (error) {
@@ -104,7 +128,7 @@ export async function GET(request: NextRequest) {
  * 5. Bulk insert messages
  * 6. Return campaignId
  */
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const body: CreateCampaignRequest = await request.json();
 
@@ -137,18 +161,18 @@ export async function POST(request: NextRequest) {
     const blockedPhones = new Set(blocklist.map((b) => b.phone));
 
     // Process and validate contacts
-    const processedContacts: Array<{
+    type ProcessedContact = {
       phone: string;
       name?: string;
       customData?: Record<string, string | number | boolean>;
       renderedMessage: string;
       status: "valid" | "invalid" | "blocked";
       error?: string;
-    }> = [];
+    };
 
-    const validContacts: typeof processedContacts = [];
-    const invalidContacts: typeof processedContacts = [];
-    const blockedContacts: typeof processedContacts = [];
+    const validContacts: ProcessedContact[] = [];
+    const invalidContacts: ProcessedContact[] = [];
+    const blockedContacts: ProcessedContact[] = [];
 
     for (const contact of body.contacts) {
       // Validate phone number
