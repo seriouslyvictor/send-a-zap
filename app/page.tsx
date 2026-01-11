@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Upload, Edit, BarChart, Pause, X, Eye } from "lucide-react";
+import { Upload, Edit, BarChart, Pause, X, Eye, Loader2, Play, FolderOpen, Rocket } from "lucide-react";
 import { MailIcon } from "@/components/icons/mail-icon";
 import { CheckIcon } from "@/components/icons/check-icon";
 import { CheckListIcon } from "@/components/icons/check-list-icon";
@@ -21,6 +21,20 @@ import { CrossIcon } from "@/components/icons/cross-icon";
 import { UploadContactsModal } from "@/components/modals/upload-contacts-modal";
 import { CampaignWizard } from "@/components/modals/campaign-wizard";
 import { CampaignDetailsModal } from "@/components/modals/campaign-details-modal";
+import { EmptyState } from "@/components/ui/empty-state-beautiful-accessible-no-data-states";
+
+interface Campaign {
+  id: string;
+  name: string;
+  status: string;
+  totalContacts: number;
+  sentCount: number;
+  deliveredCount: number;
+  readCount: number;
+  failedCount: number;
+  createdAt: string;
+  startedAt?: string;
+}
 
 export default function DashboardPage() {
   // Modal states
@@ -28,7 +42,14 @@ export default function DashboardPage() {
   const [campaignWizardOpen, setCampaignWizardOpen] = useState(false);
   const [campaignDetailsOpen, setCampaignDetailsOpen] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<any>(null);
-  // Mock data for demonstration
+
+  // Data states
+  const [activeCampaigns, setActiveCampaigns] = useState<Campaign[]>([]);
+  const [recentCampaigns, setRecentCampaigns] = useState<Campaign[]>([]);
+  const [isLoadingActive, setIsLoadingActive] = useState(true);
+  const [isLoadingRecent, setIsLoadingRecent] = useState(true);
+
+  // Mock data for demonstration (stats will be calculated from real data later)
   const stats = [
     {
       icon: <MailIcon size={20} />,
@@ -60,54 +81,73 @@ export default function DashboardPage() {
     },
   ];
 
-  const activeCampaigns = [
-    {
-      id: 1,
-      name: "Summer Sale",
-      status: "Running",
-      progress: 86,
-      sent: 856,
-      total: 1000,
-    },
-    {
-      id: 2,
-      name: "Welcome Series",
-      status: "Running",
-      progress: 29,
-      sent: 145,
-      total: 500,
-    },
-  ];
+  // Fetch active campaigns (RUNNING status)
+  const fetchActiveCampaigns = async () => {
+    setIsLoadingActive(true);
+    try {
+      const response = await fetch("/api/campaigns?status=RUNNING");
+      const data = await response.json();
+      if (data.success) {
+        setActiveCampaigns(data.data);
+      }
+    } catch (error) {
+      console.error("Error fetching active campaigns:", error);
+    } finally {
+      setIsLoadingActive(false);
+    }
+  };
 
-  const recentCampaigns = [
-    {
-      id: 1,
-      name: "Black Friday 2026",
-      sent: 1234,
-      delivered: 1156,
-      read: 892,
-      failed: 78,
-      date: "Jan 5",
-    },
-    {
-      id: 2,
-      name: "New Year Promo",
-      sent: 567,
-      delivered: 545,
-      read: 423,
-      failed: 22,
-      date: "Jan 1",
-    },
-    {
-      id: 3,
-      name: "Holiday Special",
-      sent: 892,
-      delivered: 870,
-      read: 654,
-      failed: 22,
-      date: "Dec 28",
-    },
-  ];
+  // Fetch recent campaigns (top 10 latest created)
+  const fetchRecentCampaigns = async () => {
+    setIsLoadingRecent(true);
+    try {
+      const response = await fetch("/api/campaigns?limit=10");
+      const data = await response.json();
+      if (data.success) {
+        setRecentCampaigns(data.data);
+      }
+    } catch (error) {
+      console.error("Error fetching recent campaigns:", error);
+    } finally {
+      setIsLoadingRecent(false);
+    }
+  };
+
+  // Load data on mount
+  useEffect(() => {
+    fetchActiveCampaigns();
+    fetchRecentCampaigns();
+  }, []);
+
+  // Refresh data when campaign wizard closes
+  const handleCampaignCreated = () => {
+    fetchActiveCampaigns();
+    fetchRecentCampaigns();
+  };
+
+  // Calculate progress percentage
+  const calculateProgress = (campaign: Campaign) => {
+    if (campaign.totalContacts === 0) return 0;
+    return Math.round((campaign.sentCount / campaign.totalContacts) * 100);
+  };
+
+  // Format date
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
+
+  // Get trend color class
+  function getTrendColorClass(trend: string): string {
+    switch (trend) {
+      case "up":
+        return "text-green-600 dark:text-green-400";
+      case "down":
+        return "text-red-600 dark:text-red-400";
+      default:
+        return "text-gray-500 dark:text-gray-400";
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -125,13 +165,7 @@ export default function DashboardPage() {
                 {stat.value}
               </div>
               <p
-                className={`text-xs mt-1 ${
-                  stat.trend === "up"
-                    ? "text-green-600 dark:text-green-400"
-                    : stat.trend === "down"
-                    ? "text-red-600 dark:text-red-400"
-                    : "text-gray-500 dark:text-gray-400"
-                }`}
+                className={`text-xs mt-1 ${getTrendColorClass(stat.trend)}`}
               >
                 {stat.subtitle}
               </p>
@@ -169,83 +203,99 @@ export default function DashboardPage() {
           <CardTitle>Active Campaigns ({activeCampaigns.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Progress</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {activeCampaigns.map((campaign) => (
-                <TableRow key={campaign.id}>
-                  <TableCell className="font-medium dark:text-gray-200">{campaign.name}</TableCell>
-                  <TableCell>
-                    <Badge variant="default" className="bg-green-500">
-                      {campaign.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1 min-w-50">
-                      <div className="flex justify-between text-sm">
-                        <span>
-                          {campaign.sent}/{campaign.total}
-                        </span>
-                        <span className="text-gray-500">
-                          {campaign.progress}%
-                        </span>
-                      </div>
-                      <Progress value={campaign.progress} />
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button variant="ghost" size="sm" title="Pause campaign">
-                        <Pause className="w-4 h-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" title="Stop campaign">
-                        <X className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        title="View details"
-                        onClick={() => {
-                          setSelectedCampaign({
-                            id: campaign.id.toString(),
-                            name: campaign.name,
-                            status: campaign.status,
-                            startedAt: "Jan 7, 2026 at 14:30",
-                            estimatedCompletion: "15:15 (in 32 minutes)",
-                            progress: campaign.progress,
-                            sent: campaign.sent,
-                            total: campaign.total,
-                            delivered: Math.floor(campaign.sent * 0.93),
-                            read: Math.floor(campaign.sent * 0.6),
-                            failed: Math.floor(campaign.sent * 0.07),
-                            batchSize: 50,
-                            messageDelay: 2,
-                            batchDelay: 30,
-                            retries: true,
-                            maxRetries: 3,
-                            message: "Olá {{name}}! Temos novidades sobre o curso {{course}}.",
-                            failedMessages: [
-                              { phone: "5511987654321", name: "João", error: "Invalid number" },
-                            ],
-                          });
-                          setCampaignDetailsOpen(true);
-                        }}
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+          {isLoadingActive ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+            </div>
+          ) : activeCampaigns.length === 0 ? (
+            <EmptyState
+              title="No Active Campaigns"
+              message="There are currently no campaigns running. Create a new campaign to start sending messages to your contacts."
+              actionLabel="Create Campaign"
+              actionIcon={Rocket}
+              onActionClick={() => setCampaignWizardOpen(true)}
+              mainIcon={Play}
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Progress</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {activeCampaigns.map((campaign) => {
+                  const progress = calculateProgress(campaign);
+                  return (
+                    <TableRow key={campaign.id}>
+                      <TableCell className="font-medium dark:text-gray-200">
+                        {campaign.name}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="default" className="bg-green-500">
+                          Running
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1 min-w-50">
+                          <div className="flex justify-between text-sm">
+                            <span>
+                              {campaign.sentCount}/{campaign.totalContacts}
+                            </span>
+                            <span className="text-gray-500">{progress}%</span>
+                          </div>
+                          <Progress value={progress} />
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button variant="ghost" size="sm" title="Pause campaign">
+                            <Pause className="w-4 h-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" title="Stop campaign">
+                            <X className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="View details"
+                            onClick={() => {
+                              setSelectedCampaign({
+                                id: campaign.id,
+                                name: campaign.name,
+                                status: campaign.status,
+                                startedAt: campaign.startedAt || "Not started",
+                                estimatedCompletion: "Calculating...",
+                                progress,
+                                sent: campaign.sentCount,
+                                total: campaign.totalContacts,
+                                delivered: campaign.deliveredCount,
+                                read: campaign.readCount,
+                                failed: campaign.failedCount,
+                                batchSize: 50,
+                                messageDelay: 2,
+                                batchDelay: 30,
+                                retries: true,
+                                maxRetries: 3,
+                                message: "Campaign message...",
+                                failedMessages: [],
+                              });
+                              setCampaignDetailsOpen(true);
+                            }}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
@@ -253,49 +303,69 @@ export default function DashboardPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Recent Campaigns (Last 30 days)</CardTitle>
-            <Button variant="link" className="text-blue-600">
-              View All →
+            <CardTitle>Recent Campaigns (Last 10)</CardTitle>
+            <Button variant="link" className="text-blue-600" asChild>
+              <a href="/campaigns">View All →</a>
             </Button>
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Campaign Name</TableHead>
-                <TableHead className="text-right">Sent</TableHead>
-                <TableHead className="text-right">Delivered</TableHead>
-                <TableHead className="text-right">Read</TableHead>
-                <TableHead className="text-right">Failed</TableHead>
-                <TableHead className="text-right">Date</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {recentCampaigns.map((campaign) => (
-                <TableRow key={campaign.id} className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
-                  <TableCell className="font-medium dark:text-gray-200">{campaign.name}</TableCell>
-                  <TableCell className="text-right">{campaign.sent}</TableCell>
-                  <TableCell className="text-right">
-                    {campaign.delivered}
-                  </TableCell>
-                  <TableCell className="text-right">{campaign.read}</TableCell>
-                  <TableCell className="text-right text-red-600 dark:text-red-400">
-                    {campaign.failed}
-                  </TableCell>
-                  <TableCell className="text-right text-gray-500 dark:text-gray-400">
-                    {campaign.date}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" title="View report">
-                      <BarChart className="w-4 h-4" />
-                    </Button>
-                  </TableCell>
+          {isLoadingRecent ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+            </div>
+          ) : recentCampaigns.length === 0 ? (
+            <EmptyState
+              title="No Campaigns Yet"
+              message="You haven't created any campaigns yet. Get started by creating your first campaign to send messages to your contacts."
+              actionLabel="Create First Campaign"
+              actionIcon={Rocket}
+              onActionClick={() => setCampaignWizardOpen(true)}
+              mainIcon={FolderOpen}
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Campaign Name</TableHead>
+                  <TableHead className="text-right">Sent</TableHead>
+                  <TableHead className="text-right">Delivered</TableHead>
+                  <TableHead className="text-right">Read</TableHead>
+                  <TableHead className="text-right">Failed</TableHead>
+                  <TableHead className="text-right">Date</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {recentCampaigns.map((campaign) => (
+                  <TableRow
+                    key={campaign.id}
+                    className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
+                  >
+                    <TableCell className="font-medium dark:text-gray-200">
+                      {campaign.name}
+                    </TableCell>
+                    <TableCell className="text-right">{campaign.sentCount}</TableCell>
+                    <TableCell className="text-right">
+                      {campaign.deliveredCount}
+                    </TableCell>
+                    <TableCell className="text-right">{campaign.readCount}</TableCell>
+                    <TableCell className="text-right text-red-600 dark:text-red-400">
+                      {campaign.failedCount}
+                    </TableCell>
+                    <TableCell className="text-right text-gray-500 dark:text-gray-400">
+                      {formatDate(campaign.createdAt)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" title="View report">
+                        <BarChart className="w-4 h-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
@@ -307,6 +377,7 @@ export default function DashboardPage() {
       <CampaignWizard
         open={campaignWizardOpen}
         onOpenChange={setCampaignWizardOpen}
+        onCampaignCreated={handleCampaignCreated}
       />
       <CampaignDetailsModal
         open={campaignDetailsOpen}

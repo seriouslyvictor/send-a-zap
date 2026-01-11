@@ -25,7 +25,8 @@
       "Bash(npx shadcn@latest add:*)",
       "Bash(npm run build:*)",
       "Bash(npm run lint)",
-      "Bash(npx tsx:*)"
+      "Bash(npx tsx:*)",
+      "mcp__ide__getDiagnostics"
     ]
   },
   "enableAllProjectMcpServers": true,

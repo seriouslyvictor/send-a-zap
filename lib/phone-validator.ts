@@ -401,8 +401,6 @@ export function validatePhone(phone: unknown): PhoneValidationResult {
   // Extract and validate parts
   const areaCode = normalized.slice(2, 4);
   const fifthDigit = normalized.charAt(4); // Should be 9 for mobile
-  const sixthDigit = normalized.charAt(5); // Should be 6-9 for mobile
-  const lastEightDigits = normalized.slice(5);
 
   // Validate area code against official list
   if (!VALID_AREA_CODES.has(areaCode)) {
@@ -421,18 +419,6 @@ export function validatePhone(phone: unknown): PhoneValidationResult {
       normalized,
       original,
       error: 'Mobile numbers must have 9 as the first digit after area code (landlines not accepted)',
-    };
-  }
-
-  // Mobile numbers second digit MUST be 6-9
-  // Valid: 96XXX, 97XXX, 98XXX, 99XXX
-  // Invalid: 90XXX, 91XXX, 92XXX, 93XXX, 94XXX, 95XXX
-  if (!['6', '7', '8', '9'].includes(sixthDigit)) {
-    return {
-      isValid: false,
-      normalized,
-      original,
-      error: `Invalid mobile format: digit after 9 must be 6-9, got ${sixthDigit}`,
     };
   }
 
