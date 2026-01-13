@@ -16,27 +16,28 @@ interface RouteParams {
  * POST /api/campaigns/[id]/start
  * Start a campaign by triggering the n8n workflow
  *
- * Flow:
- * 1. Validate campaign exists and is in valid state (DRAFT or PAUSED)
- * 2. Update campaign status to PENDING
- * 3. Update all PENDING messages to QUEUED
- * 4. Call n8n webhook to trigger campaign-executor workflow
- * 5. Store n8n execution ID
- * 6. Update campaign status to RUNNING
- * 7. Return success
+ * REFACTORED: Business logic moved to n8n workflow
+ * API Route responsibilities:
+ * 1. Validate campaign exists and is in valid state (DRAFT or FAILED)
+ * 2. Validate pending messages exist
+ * 3. Trigger n8n workflow
+ * 4. Return success response
+ *
+ * n8n workflow responsibilities (business logic):
+ * - Update campaign status to RUNNING
+ * - Set startedAt timestamp
+ * - Store n8n execution ID
+ * - Update messages from PENDING to QUEUED
+ * - Process messages (send via Evolution API)
+ * - Handle completion and errors
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
 
-    // Fetch campaign
+    // Validate campaign exists
     const campaign = await prisma.campaign.findUnique({
       where: { id },
-      include: {
-        _count: {
-          select: { messages: true },
-        },
-      },
     });
 
     if (!campaign) {
@@ -76,26 +77,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Update campaign status to RUNNING immediately
-    // (n8n workflow checks for RUNNING status)
-    await prisma.campaign.update({
-      where: { id },
-      data: {
-        status: CampaignStatus.RUNNING,
-        startedAt: new Date(),
-      },
-    });
-
     // Get n8n webhook URL from environment
     const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL;
 
     if (!n8nWebhookUrl) {
-      // Rollback status if n8n is not configured
-      await prisma.campaign.update({
-        where: { id },
-        data: { status: campaign.status },
-      });
-
       return NextResponse.json(
         {
           success: false,
@@ -105,9 +90,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Trigger n8n workflow
-    let n8nExecutionId: string | undefined;
-
+    // Trigger n8n workflow (n8n handles ALL state transitions and business logic)
     try {
       const webhookUrl = `${n8nWebhookUrl}/campaign-executor`;
       console.log(`[CAMPAIGN] Triggering n8n webhook: ${webhookUrl}`);
@@ -134,19 +117,27 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       }
 
       const n8nData = await n8nResponse.json();
-      n8nExecutionId = n8nData.executionId;
+      console.log(`[CAMPAIGN] n8n workflow triggered successfully`);
 
-      console.log(`[CAMPAIGN] n8n workflow triggered, executionId: ${n8nExecutionId}`);
+      // Read updated campaign state (n8n has already updated it)
+      const updatedCampaign = await prisma.campaign.findUnique({
+        where: { id },
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          id: updatedCampaign!.id,
+          name: updatedCampaign!.name,
+          status: updatedCampaign!.status,
+          n8nExecutionId: updatedCampaign!.n8nExecutionId,
+          startedAt: updatedCampaign!.startedAt,
+          pendingMessages: pendingCount,
+        },
+        message: "Campaign started successfully",
+      });
     } catch (error) {
       console.error("[CAMPAIGN] Failed to trigger n8n workflow:", error);
-
-      // Rollback campaign status
-      await prisma.campaign.update({
-        where: { id },
-        data: {
-          status: CampaignStatus.FAILED,
-        },
-      });
 
       return NextResponse.json(
         {
@@ -156,38 +147,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         { status: 500 }
       );
     }
-
-    // Store n8n execution ID (status already set to RUNNING above)
-    const updatedCampaign = await prisma.campaign.update({
-      where: { id },
-      data: {
-        n8nExecutionId: n8nExecutionId,
-      },
-    });
-
-    // Update pending messages to QUEUED
-    await prisma.message.updateMany({
-      where: {
-        campaignId: id,
-        status: MessageStatus.PENDING,
-      },
-      data: {
-        status: MessageStatus.QUEUED,
-      },
-    });
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        id: updatedCampaign.id,
-        name: updatedCampaign.name,
-        status: updatedCampaign.status,
-        n8nExecutionId: updatedCampaign.n8nExecutionId,
-        startedAt: updatedCampaign.startedAt,
-        pendingMessages: pendingCount,
-      },
-      message: "Campaign started successfully",
-    });
   } catch (error) {
     console.error("[CAMPAIGN] Error starting campaign:", error);
     return NextResponse.json(

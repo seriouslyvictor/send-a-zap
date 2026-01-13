@@ -1,0 +1,2445 @@
+{
+  "name": "Campaign Executor",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "campaign-executor",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "d7d3dc8c-0c5e-4506-a77f-8afdaa721cbb",
+      "name": "Webhook Trigger1",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "onError": "continueRegularOutput",
+      "position": [
+        -6304,
+        1040
+      ],
+      "webhookId": "campaign-executor"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=SELECT * FROM campaigns WHERE id = '{{ $json.id_convocacao }}' LIMIT 1",
+        "options": {}
+      },
+      "id": "5db0a9c4-3185-4c1c-9395-06f1ccb22813",
+      "name": "Get Campaign1",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -5744,
+        1040
+      ],
+      "retryOnFail": true,
+      "credentials": {
+        "postgres": {
+          "id": "NRqHF5gz4GjrdkXH",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=SELECT * FROM messages WHERE campaign_id = '{{ $('Webhook Trigger1').item.json.body.campaignId }}' AND status IN ('PENDING', 'QUEUED') ORDER BY created_at ASC",
+        "options": {}
+      },
+      "id": "b05cfa50-27ff-4853-a537-5472744dc1ef",
+      "name": "Get Pending Messages1",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -4688,
+        928
+      ],
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "credentials": {
+        "postgres": {
+          "id": "NRqHF5gz4GjrdkXH",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get campaign config from webhook trigger\nconst config = $('Webhook Trigger1').first().json.body\nconst batchSize = config.batchSize || 50;\nconst messages = $input.all();\n\n\nconsole.log(\"Splitting messages into Batches...\")\n// Split messages into batches\nconst batches = [];\nfor (let i = 0; i < messages.length; i += batchSize) {\n  batches.push({\n    batchIndex: Math.floor(i / batchSize),\n    messages: messages.slice(i, i + batchSize).map(m => m.json),\n    totalBatches: Math.ceil(messages.length / batchSize),\n    totalMessages: messages.length,\n    campaignId: config.campaignId,\n    instanceName: config.instanceName || 'whatsapp-main',\n    messageDelay: config.messageDelay || 2,\n    batchDelay: config.batchDelay || 30,\n    autoRetry: config.autoRetry || false,\n    maxRetries: config.maxRetries || 3\n  });\n}\n\n// If no messages, return empty batch to handle completion\nif (batches.length === 0) {\n  return [{\n    json: {\n      batchIndex: 0,\n      messages: [],\n      totalBatches: 0,\n      totalMessages: 0,\n      campaignId: config.campaignId,\n      instanceName: config.instanceName || 'whatsapp-main',\n      messageDelay: config.messageDelay || 2,\n      batchDelay: config.batchDelay || 30,\n      noMessages: true\n    }\n  }];\n}\n\nreturn batches.map(batch => ({ json: batch }));"
+      },
+      "id": "a46041a1-f608-4aaa-9a5d-7bb9c1a9f734",
+      "name": "Split Into Batches1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4288,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "36e4661d-5b3c-4d81-8e2f-9b9fdec54d0e",
+      "name": "Loop Batches1",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -4064,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract messages from current batch\nconst batch = $('Loop Batches1').item.json;\nconst messages = batch.messages || [];\n\n// Return each message as separate item for processing\nreturn messages.map(msg => ({\n  json: {\n    ...msg,\n    campaignId: batch.campaignId,\n    instanceName: batch.instanceName,\n    messageDelay: batch.messageDelay,\n    batchIndex: batch.batchIndex,\n    totalBatches: batch.totalBatches\n  }\n}));"
+      },
+      "id": "4a52161e-f5bf-47d4-a463-813adf81321c",
+      "name": "Extract Batch Messages1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3392,
+        880
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "6048e2e6-cc53-4f79-aeea-0059a48287e2",
+      "name": "Loop Messages1",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -3136,
+        848
+      ],
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://whatsapp_evolution_dev:8080/message/sendText/{{$json.instanceName}}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $json[\"phone\"] }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json[\"rendered_message\"] }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "eaf44954-181b-4d20-bdb2-9d657647cc7e",
+      "name": "Send Message1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2112,
+        848
+      ],
+      "alwaysOutputData": false,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "18hvHnoAu66DdaWj",
+          "name": "Header Auth account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "amount": "={{\n  Number($('Loop Batches1').item.json.messageDelay)\n}}"
+      },
+      "id": "0171d6a2-c32a-48fd-bdb5-5f8ab048cca6",
+      "name": "Wait Message Delay1",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -1152,
+        960
+      ],
+      "webhookId": "message-delay-wait"
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Loop Batches1').item.json.batchDelay }}"
+      },
+      "id": "7e2c5e5a-0c51-4b2b-bdb5-d933a51fb0bd",
+      "name": "Wait Batch Delay1",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -2640,
+        672
+      ],
+      "webhookId": "batch-delay-wait"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Campaign was paused or cancelled during execution\nconst campaignId = $('Webhook Trigger1').first().json.body.campaignId;\nconst currentStatus = $('Check Status In Loop1').first().json.status;\n\nconsole.log(`Campaign ${campaignId} is now ${currentStatus}, stopping execution`);\n\nreturn [{\n  json: {\n    campaignId,\n    status: currentStatus,\n    message: `Campaign execution stopped - status changed to ${currentStatus}`\n  }\n}];"
+      },
+      "id": "e8729ca6-8de9-4de1-9abd-0f9ed2a951cf",
+      "name": "Handle Campaign Stopped1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3536,
+        1184
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "faf3969a-5031-460d-8e3a-de27286c8441",
+      "name": "End1",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -3328,
+        1248
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "5dea7bfb-00bc-432b-b012-c1991d38e3c6",
+      "name": "Merge After Message1",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -864,
+        928
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "condition-send-success-201",
+              "leftValue": "={{ $json.error.status }}",
+              "rightValue": 404,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "7e598e3d-a205-4b31-906f-d8f06aa7179e",
+              "leftValue": "={{ toBoolean($json.error) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "933c0363-2fba-4803-8253-3bf33970a1fb",
+      "name": "Send Error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -1952,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "campaigns",
+          "mode": "list",
+          "cachedResultName": "campaigns"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $json.id }}",
+            "status": "RUNNING",
+            "n8n_execution_id": "={{ $execution.id }}",
+            "updated_at": "={{ new Date().toISOString() }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": true,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "message_template",
+              "displayName": "message_template",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "image_url",
+              "displayName": "image_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "batch_size",
+              "displayName": "batch_size",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "message_delay",
+              "displayName": "message_delay",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "batch_delay",
+              "displayName": "batch_delay",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "auto_retry",
+              "displayName": "auto_retry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "max_retries",
+              "displayName": "max_retries",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "retry_delay",
+              "displayName": "retry_delay",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "options",
+              "canBeUsedToMatch": true,
+              "options": [
+                {
+                  "name": "FAILED",
+                  "value": "FAILED"
+                },
+                {
+                  "name": "CANCELLED",
+                  "value": "CANCELLED"
+                },
+                {
+                  "name": "COMPLETED",
+                  "value": "COMPLETED"
+                },
+                {
+                  "name": "PAUSED",
+                  "value": "PAUSED"
+                },
+                {
+                  "name": "RUNNING",
+                  "value": "RUNNING"
+                },
+                {
+                  "name": "PENDING",
+                  "value": "PENDING"
+                },
+                {
+                  "name": "DRAFT",
+                  "value": "DRAFT"
+                }
+              ],
+              "removed": false
+            },
+            {
+              "id": "total_contacts",
+              "displayName": "total_contacts",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "sent_count",
+              "displayName": "sent_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "delivered_count",
+              "displayName": "delivered_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "read_count",
+              "displayName": "read_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "failed_count",
+              "displayName": "failed_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "started_at",
+              "displayName": "started_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "column_mapping",
+              "displayName": "column_mapping",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "instance_name",
+              "displayName": "instance_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "n8n_execution_id",
+              "displayName": "n8n_execution_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -5520,
+        1024
+      ],
+      "id": "b60a1158-cf94-4eeb-b868-46818ad2c0e4",
+      "name": "Atualizar Status",
+      "credentials": {
+        "postgres": {
+          "id": "NRqHF5gz4GjrdkXH",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: 'Falha ao resgatar dados da convocação', status: $json.status }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "cbbc8bbd-e41a-4e55-a692-2cfdf3a96a56",
+      "name": "Responder: Falha ao resgatar dados",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -5488,
+        1248
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: 'Convocação não está em execução', status: $json.status }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "1fa7e1fb-fe24-4476-ad60-0e67aa8c289d",
+      "name": "Responder: Status não está \"Em Execução\"",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -4912,
+        1136
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: 'Campaign started', executionId: $execution.id, campaignId: $('Webhook Trigger1').first().json.body.campaignId }) }}",
+        "options": {}
+      },
+      "id": "8dc30803-b535-44c6-90b7-1c6999ff3fde",
+      "name": "Responder: Convocação iniciada",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -4912,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "ea5f5c5f-6c0f-493f-9d3b-d7a91e40f636",
+              "leftValue": "={{ $('Loop Messages1').item.json.status }}",
+              "rightValue": "QUEUED",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "f305df5c-af41-43b4-806e-9c115de90972",
+              "leftValue": "={{ $('Loop Messages1').item.json.status }}",
+              "rightValue": "PENDING",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -2320,
+        848
+      ],
+      "id": "696f92e9-74be-4220-a67c-479b2c6df9a4",
+      "name": "Skip sent messages"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "condition-has-messages",
+              "leftValue": "={{ $json.noMessages }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "40c86ad4-5c67-41d4-a6fc-9827b48994aa",
+              "leftValue": "={{$json}}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "0629a9fa-e0dd-432a-a7e7-c7812cc5c41c",
+      "name": "FIla Vazia?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -4528,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "8816d76b-c0c7-4d72-956e-912c7318dd07",
+              "name": "id_convocacao",
+              "value": "={{ $json.body.campaignId }}",
+              "type": "string"
+            },
+            {
+              "id": "d3e02b65-209a-463b-9bf5-372d7ef63a59",
+              "name": "nome_instancia",
+              "value": "={{ $json.body.instanceName }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -5952,
+        1024
+      ],
+      "id": "083d34cd-6db3-4f3b-99e9-1570b9c1b4b6",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "8947b614-09ca-4970-af88-d0dcd337c840",
+              "leftValue": "={{ $json[\"totalBatches\"] }}",
+              "rightValue": 1,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -2864,
+        640
+      ],
+      "id": "ffb74e5e-d67d-4c61-a1a3-915bb24bcdd7",
+      "name": "Batch = 1 ?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "condition-status-check",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "RUNNING",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "a6aea8c5-51e3-4129-9852-40a41a73d62d",
+      "name": "Check Campaign Status1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -5136,
+        1024
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "condition-still-running",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "RUNNING",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cba84fd6-0709-414c-be14-bd5c780ffd4f",
+      "name": "Still Running?1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -3728,
+        1072
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=SELECT status FROM campaigns WHERE id = '{{ $('Webhook Trigger1').first().json.body.campaignId }}' LIMIT 1",
+        "options": {}
+      },
+      "id": "1cce3edc-2420-4c6e-842e-87f99f91b28f",
+      "name": "Check Status In Loop1",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -3904,
+        1072
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "NRqHF5gz4GjrdkXH",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.status}}",
+                    "rightValue": "RUNNING",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "47ca176a-c533-4929-ba5c-29b87d137c77"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "5122724b-fb7f-435e-8ed5-4e7d224c98a1",
+                    "leftValue": "={{$json.status}}",
+                    "rightValue": "PAUSED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "d45b3b14-be0f-4968-b4cf-55c3077bae47",
+                    "leftValue": "={{$json.status}}",
+                    "rightValue": "CANCELLED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -2592,
+        896
+      ],
+      "id": "89b22e4a-92c8-4c26-ba2c-e78eeac00936",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "messages",
+          "mode": "list",
+          "cachedResultName": "messages"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Loop Messages1').item.json.id }}",
+            "error_message": "={{ $('Send Message1').item.json.error }}",
+            "status": "FAILED"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": true,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "campaign_id",
+              "displayName": "campaign_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "custom_data",
+              "displayName": "custom_data",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "rendered_message",
+              "displayName": "rendered_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "options",
+              "canBeUsedToMatch": true,
+              "options": [
+                {
+                  "name": "FAILED",
+                  "value": "FAILED"
+                },
+                {
+                  "name": "READ",
+                  "value": "READ"
+                },
+                {
+                  "name": "DELIVERED",
+                  "value": "DELIVERED"
+                },
+                {
+                  "name": "SENT",
+                  "value": "SENT"
+                },
+                {
+                  "name": "QUEUED",
+                  "value": "QUEUED"
+                },
+                {
+                  "name": "PENDING",
+                  "value": "PENDING"
+                }
+              ],
+              "removed": false
+            },
+            {
+              "id": "message_id",
+              "displayName": "message_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "sent_at",
+              "displayName": "sent_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "delivered_at",
+              "displayName": "delivered_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "read_at",
+              "displayName": "read_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "retry_count",
+              "displayName": "retry_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "last_retry_at",
+              "displayName": "last_retry_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "6549fec1-293e-45f2-96d1-b78bf3c52027",
+      "name": "Atualizar: Mensagem Falhou",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1712,
+        720
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "NRqHF5gz4GjrdkXH",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE campaigns SET failed_count = failed_count + 1 WHERE id = '{{ $node[\"Split Into Batches1\"].json[\"campaignId\"] }}'",
+        "options": {}
+      },
+      "id": "ad89c73c-1929-4052-9fa0-8b9d4ae1bfd9",
+      "name": "Atualizar: Falha na Campanha",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1488,
+        720
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "NRqHF5gz4GjrdkXH",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "messages",
+          "mode": "list",
+          "cachedResultName": "messages"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Loop Messages1').item.json.id }}",
+            "sent_at": "={{ new Date().toISOString() }}",
+            "status": "SENT"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": true,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "campaign_id",
+              "displayName": "campaign_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "custom_data",
+              "displayName": "custom_data",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "rendered_message",
+              "displayName": "rendered_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "options",
+              "canBeUsedToMatch": true,
+              "options": [
+                {
+                  "name": "FAILED",
+                  "value": "FAILED"
+                },
+                {
+                  "name": "READ",
+                  "value": "READ"
+                },
+                {
+                  "name": "DELIVERED",
+                  "value": "DELIVERED"
+                },
+                {
+                  "name": "SENT",
+                  "value": "SENT"
+                },
+                {
+                  "name": "QUEUED",
+                  "value": "QUEUED"
+                },
+                {
+                  "name": "PENDING",
+                  "value": "PENDING"
+                }
+              ],
+              "removed": false
+            },
+            {
+              "id": "message_id",
+              "displayName": "message_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "sent_at",
+              "displayName": "sent_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "delivered_at",
+              "displayName": "delivered_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "read_at",
+              "displayName": "read_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "retry_count",
+              "displayName": "retry_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "last_retry_at",
+              "displayName": "last_retry_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "6ccedafc-0320-4e7e-bb3b-98625393fec7",
+      "name": "Atualizar: Mensagem Enviada",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1728,
+        944
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "NRqHF5gz4GjrdkXH",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE campaigns SET sent_count = sent_count + 1 WHERE id = '{{ $node[\"Split Into Batches1\"].json[\"campaignId\"] }}' ;",
+        "options": {}
+      },
+      "id": "c1e57340-9cc4-4b24-b214-7c9a0c839ce9",
+      "name": "Atualizar: Enviada na Campanha",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1520,
+        944
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "NRqHF5gz4GjrdkXH",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "campaigns",
+          "mode": "list",
+          "cachedResultName": "campaigns"
+        },
+        "limit": 1,
+        "where": {
+          "values": [
+            {
+              "column": "id",
+              "value": "={{ $('Webhook Trigger1').first().json.body.campaignId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2816,
+        912
+      ],
+      "id": "8dfa77d1-8356-488b-b77c-6dbbf02923fd",
+      "name": "Resgatar Status",
+      "credentials": {
+        "postgres": {
+          "id": "NRqHF5gz4GjrdkXH",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE messages\n      SET status = 'PENDING'\n      WHERE campaign_id = '{{ $('Extract Batch Messages1').item.json.campaign_id }}'\n        AND status IN ('QUEUED', 'PENDING')",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2320,
+        1008
+      ],
+      "id": "15eed4cc-c287-48ce-9264-89021782c73d",
+      "name": "Marcar: Pendente",
+      "credentials": {
+        "postgres": {
+          "id": "NRqHF5gz4GjrdkXH",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE messages\n      SET status = 'FAILED'\n      WHERE campaign_id = '{{ $('Extract Batch Messages1').item.json.campaign_id }}'\n        AND status IN ('QUEUED', 'PENDING')",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2320,
+        1184
+      ],
+      "id": "ffed7c43-a3ea-4238-9a9f-6f06c750b277",
+      "name": "Marcar: Falha",
+      "credentials": {
+        "postgres": {
+          "id": "NRqHF5gz4GjrdkXH",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "=  {{\n    JSON.stringify({\n      success: true,\n      message: 'Campaign completed successfully. No messages to sent',\n      status: 'COMPLETED',\n      campaignId: $('Edit Fields').item.json.id_convocacao,\n      executionId: $execution.id,\n      completedAt: new Date().toISOString()\n    })\n  }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -4224,
+        704
+      ],
+      "id": "c8fcc942-7744-4070-af74-3ef546c0494a",
+      "name": "Responder: COMPLETO"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "= {{\n    JSON.stringify({\n      success: false,\n      error: 'Campaign was paused',\n      message: 'Campaign stopped after detecting PAUSED status. Queued messages reverted to PENDING.',\n      status: 'PAUSED',\n      campaignId: $('Webhook Trigger1').first().json.body.campaignId,\n      executionId: $execution.id,\n      stats: {\n        messagesSent:  $json.sent_count || 0,\n        messagesPending: $json.pending_count || 0\n      },\n      pausedAt: new Date().toISOString()\n    })\n  }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "f708e859-0db9-45a2-8ac6-5322b094306c",
+      "name": "Responder: PAUSADO",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -1936,
+        1008
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "= {{\n    JSON.stringify({\n      success: false,\n      error: 'Campaign was cancelled',\n      message: 'Campaign stopped immediately after detecting CANCELLED status.',\n      status: 'CANCELLED',\n      campaignId: $('Webhook Trigger1').first().json.body.campaignId,\n      executionId: $execution.id,\n      stats: {\n        messagesSent:  $json.sent_count || 0,\n        messagesFailed: $json.failed_count || 0\n      },\n      cancelledAt: new Date().toISOString()\n    })\n  }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "8d139557-9899-4a59-83a7-2803e6d3001c",
+      "name": "Responder: CANCELADO",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -1936,
+        1184
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "campaigns",
+          "mode": "list",
+          "cachedResultName": "campaigns"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Edit Fields').item.json.id_convocacao }}",
+            "status": "COMPLETED",
+            "completed_at": "={{ new Date().toISOString() }}",
+            "updated_at": "={{ new Date().toISOString() }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": true,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "message_template",
+              "displayName": "message_template",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "image_url",
+              "displayName": "image_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "batch_size",
+              "displayName": "batch_size",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "message_delay",
+              "displayName": "message_delay",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "batch_delay",
+              "displayName": "batch_delay",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "auto_retry",
+              "displayName": "auto_retry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "max_retries",
+              "displayName": "max_retries",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "retry_delay",
+              "displayName": "retry_delay",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "options",
+              "canBeUsedToMatch": true,
+              "options": [
+                {
+                  "name": "FAILED",
+                  "value": "FAILED"
+                },
+                {
+                  "name": "CANCELLED",
+                  "value": "CANCELLED"
+                },
+                {
+                  "name": "COMPLETED",
+                  "value": "COMPLETED"
+                },
+                {
+                  "name": "PAUSED",
+                  "value": "PAUSED"
+                },
+                {
+                  "name": "RUNNING",
+                  "value": "RUNNING"
+                },
+                {
+                  "name": "PENDING",
+                  "value": "PENDING"
+                },
+                {
+                  "name": "DRAFT",
+                  "value": "DRAFT"
+                }
+              ],
+              "removed": false
+            },
+            {
+              "id": "total_contacts",
+              "displayName": "total_contacts",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "sent_count",
+              "displayName": "sent_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "delivered_count",
+              "displayName": "delivered_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "read_count",
+              "displayName": "read_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "failed_count",
+              "displayName": "failed_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "started_at",
+              "displayName": "started_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "column_mapping",
+              "displayName": "column_mapping",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "instance_name",
+              "displayName": "instance_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "n8n_execution_id",
+              "displayName": "n8n_execution_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "0363dbbb-25f6-4f63-91d6-43419d9c41a2",
+      "name": "Marcar: Completo (Tudo OK)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -3552,
+        272
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "NRqHF5gz4GjrdkXH",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE campaigns SET status = 'COMPLETED', completed_at = NOW() WHERE id = '{{ $('Webhook Trigger1').item.json.body.campaignId }}' RETURNING *",
+        "options": {}
+      },
+      "id": "d20a5a53-6733-41f4-a161-4f02e6cf75df",
+      "name": "Marcar: Completo (Sem mensagens)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -4432,
+        704
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "NRqHF5gz4GjrdkXH",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=SELECT\n  c.*,\n  (\n    SELECT COUNT(*)\n    FROM messages m\n    WHERE m.status = 'PENDING'\n      AND m.campaign_id = c.id\n  ) AS pending_count\nFROM campaigns c\nWHERE c.id = '{{ $('Edit Fields').item.json.id_convocacao }}'\nLIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2112,
+        1008
+      ],
+      "id": "7cb6386c-bfd3-46ae-abfa-38620474be0b",
+      "name": "Execute a SQL query",
+      "credentials": {
+        "postgres": {
+          "id": "NRqHF5gz4GjrdkXH",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=SELECT\n  c.*,\n  (\n    SELECT COUNT(*)\n    FROM messages m\n    WHERE m.status = 'FAILED'\n      AND m.campaign_id = c.id\n  ) AS failed_count\nFROM campaigns c\nWHERE c.id = '{{ $('Edit Fields').item.json.id_convocacao }}'\nLIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2112,
+        1184
+      ],
+      "id": "6f922d7f-9ab7-45d4-af57-8ef177fa79da",
+      "name": "Execute a SQL query1",
+      "credentials": {
+        "postgres": {
+          "id": "NRqHF5gz4GjrdkXH",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "=  {{\n    JSON.stringify({\n      success: true,\n      message: 'Campaign completed successfully. All messages sent',\n      status: 'COMPLETED',\n      campaignId: $('Edit Fields').item.json.id_convocacao,\n      executionId: $execution.id,\n      completedAt: new Date().toISOString()\n    })\n  }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -3360,
+        272
+      ],
+      "id": "315dc1a3-bf8f-4a5e-a0c2-9a3f53ea5105",
+      "name": "Responder: COMPLETO1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Trigger1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Campaign1": {
+      "main": [
+        [
+          {
+            "node": "Atualizar Status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder: Falha ao resgatar dados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Pending Messages1": {
+      "main": [
+        [
+          {
+            "node": "FIla Vazia?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Into Batches1": {
+      "main": [
+        [
+          {
+            "node": "Loop Batches1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Batches1": {
+      "main": [
+        [
+          {
+            "node": "Marcar: Completo (Tudo OK)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Status In Loop1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Batch Messages1": {
+      "main": [
+        [
+          {
+            "node": "Loop Messages1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Messages1": {
+      "main": [
+        [
+          {
+            "node": "Batch = 1 ?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resgatar Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Message1": {
+      "main": [
+        [
+          {
+            "node": "Send Error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Message Delay1": {
+      "main": [
+        [
+          {
+            "node": "Merge After Message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Batch Delay1": {
+      "main": [
+        [
+          {
+            "node": "Loop Batches1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Campaign Stopped1": {
+      "main": [
+        [
+          {
+            "node": "End1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge After Message1": {
+      "main": [
+        [
+          {
+            "node": "Loop Messages1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Error?": {
+      "main": [
+        [
+          {
+            "node": "Atualizar: Mensagem Falhou",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Atualizar: Mensagem Enviada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar Status": {
+      "main": [
+        [
+          {
+            "node": "Check Campaign Status1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder: Falha ao resgatar dados": {
+      "main": [
+        []
+      ]
+    },
+    "Responder: Convocação iniciada": {
+      "main": [
+        [
+          {
+            "node": "Get Pending Messages1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip sent messages": {
+      "main": [
+        [
+          {
+            "node": "Send Message1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Messages1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FIla Vazia?": {
+      "main": [
+        [
+          {
+            "node": "Marcar: Completo (Sem mensagens)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Split Into Batches1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Get Campaign1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Batch = 1 ?": {
+      "main": [
+        [
+          {
+            "node": "Wait Batch Delay1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Marcar: Completo (Tudo OK)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Campaign Status1": {
+      "main": [
+        [
+          {
+            "node": "Responder: Convocação iniciada",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder: Status não está \"Em Execução\"",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Still Running?1": {
+      "main": [
+        [
+          {
+            "node": "Extract Batch Messages1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Campaign Stopped1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Status In Loop1": {
+      "main": [
+        [
+          {
+            "node": "Still Running?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Skip sent messages",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Marcar: Pendente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Marcar: Falha",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar: Mensagem Falhou": {
+      "main": [
+        [
+          {
+            "node": "Atualizar: Falha na Campanha",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar: Falha na Campanha": {
+      "main": [
+        [
+          {
+            "node": "Merge After Message1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Atualizar: Mensagem Enviada": {
+      "main": [
+        [
+          {
+            "node": "Atualizar: Enviada na Campanha",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar: Enviada na Campanha": {
+      "main": [
+        [
+          {
+            "node": "Wait Message Delay1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resgatar Status": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar: Pendente": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar: Falha": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar: Completo (Sem mensagens)": {
+      "main": [
+        [
+          {
+            "node": "Responder: COMPLETO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder: PAUSADO": {
+      "main": [
+        []
+      ]
+    },
+    "Execute a SQL query": {
+      "main": [
+        [
+          {
+            "node": "Responder: PAUSADO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query1": {
+      "main": [
+        [
+          {
+            "node": "Responder: CANCELADO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar: Completo (Tudo OK)": {
+      "main": [
+        [
+          {
+            "node": "Responder: COMPLETO1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "XsbjubuV4LziZiXb"
+  },
+  "versionId": "4d915c71-d190-4920-a1b2-c10bd5a430bf",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "30b80c2ac0a3a0be2f495c0f721488ed3525e76d079a423915218cc2f1274902"
+  },
+  "id": "CA0joJYpwqwzJEQS",
+  "tags": [
+    {
+      "updatedAt": "2026-01-09T16:25:49.648Z",
+      "createdAt": "2026-01-09T16:25:49.648Z",
+      "id": "0JbfDuKP7S4A7oPx",
+      "name": "WhatsApp"
+    },
+    {
+      "updatedAt": "2026-01-09T16:25:49.623Z",
+      "createdAt": "2026-01-09T16:25:49.623Z",
+      "id": "6fdSN9INBCpZuVHV",
+      "name": "Campaign"
+    }
+  ]
+}

@@ -16,23 +16,25 @@ interface RouteParams {
  * POST /api/campaigns/[id]/resume
  * Resume a paused campaign by triggering the n8n workflow again
  *
- * Flow:
- * 1. Validate campaign is PAUSED
- * 2. Check for remaining PENDING messages
- * 3. Update campaign status to RUNNING (BEFORE calling n8n)
- * 4. Update messages from PENDING to QUEUED
- * 5. Trigger n8n workflow
- * 6. If n8n fails, rollback status to PAUSED and messages to PENDING
- * 7. Store execution ID and return success
+ * REFACTORED: Business logic moved to n8n workflow
+ * API Route responsibilities:
+ * 1. Validate campaign exists and is PAUSED
+ * 2. Validate pending messages exist
+ * 3. Trigger n8n workflow
+ * 4. Return success response
  *
- * CRITICAL: DB must be updated BEFORE triggering n8n, not after.
- * The n8n workflow checks for status == RUNNING immediately.
+ * n8n workflow responsibilities (business logic):
+ * - Check if pending messages exist (if none, mark COMPLETED)
+ * - Update campaign status to RUNNING
+ * - Update messages from PENDING to QUEUED
+ * - Process messages (send via Evolution API)
+ * - Handle completion and errors
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
 
-    // Fetch campaign
+    // Validate campaign exists
     const campaign = await prisma.campaign.findUnique({
       where: { id },
     });
@@ -55,34 +57,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Check for pending messages
+    // Check for pending messages (informational only, n8n will handle completion logic)
     const pendingCount = await prisma.message.count({
       where: {
         campaignId: id,
         status: MessageStatus.PENDING,
       },
     });
-
-    if (pendingCount === 0) {
-      // No pending messages - mark as completed
-      await prisma.campaign.update({
-        where: { id },
-        data: {
-          status: CampaignStatus.COMPLETED,
-          completedAt: new Date(),
-        },
-      });
-
-      return NextResponse.json({
-        success: true,
-        message: "Campaign has no pending messages and was marked as completed",
-        data: {
-          id: campaign.id,
-          name: campaign.name,
-          status: CampaignStatus.COMPLETED,
-        },
-      });
-    }
 
     // Get n8n webhook URL from environment
     const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL;
@@ -97,29 +78,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // CRITICAL: Update campaign status to RUNNING *BEFORE* triggering n8n
-    // n8n workflow checks for RUNNING status immediately, so DB must be updated first
-    await prisma.campaign.update({
-      where: { id },
-      data: {
-        status: CampaignStatus.RUNNING,
-      },
-    });
-
-    // Update pending messages to QUEUED
-    await prisma.message.updateMany({
-      where: {
-        campaignId: id,
-        status: MessageStatus.PENDING,
-      },
-      data: {
-        status: MessageStatus.QUEUED,
-      },
-    });
-
-    // Trigger n8n workflow
-    let n8nExecutionId: string | undefined;
-
+    // Trigger n8n workflow (n8n handles ALL state transitions and business logic)
     try {
       const webhookUrl = `${n8nWebhookUrl}/campaign-executor`;
       console.log(`[CAMPAIGN] Resuming - triggering n8n webhook: ${webhookUrl}`);
@@ -147,29 +106,26 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       }
 
       const n8nData = await n8nResponse.json();
-      n8nExecutionId = n8nData.executionId;
+      console.log(`[CAMPAIGN] n8n workflow triggered successfully`);
 
-      console.log(`[CAMPAIGN] n8n workflow resumed, executionId: ${n8nExecutionId}`);
+      // Read updated campaign state (n8n has already updated it)
+      const updatedCampaign = await prisma.campaign.findUnique({
+        where: { id },
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          id: updatedCampaign!.id,
+          name: updatedCampaign!.name,
+          status: updatedCampaign!.status,
+          n8nExecutionId: updatedCampaign!.n8nExecutionId,
+          pendingMessages: pendingCount,
+        },
+        message: "Campaign resumed successfully",
+      });
     } catch (error) {
       console.error("[CAMPAIGN] Failed to trigger n8n workflow for resume:", error);
-
-      // Rollback campaign status to PAUSED and messages back to PENDING
-      await prisma.campaign.update({
-        where: { id },
-        data: {
-          status: CampaignStatus.PAUSED,
-        },
-      });
-
-      await prisma.message.updateMany({
-        where: {
-          campaignId: id,
-          status: MessageStatus.QUEUED,
-        },
-        data: {
-          status: MessageStatus.PENDING,
-        },
-      });
 
       return NextResponse.json(
         {
@@ -179,26 +135,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         { status: 500 }
       );
     }
-
-    // Store n8n execution ID
-    const updatedCampaign = await prisma.campaign.update({
-      where: { id },
-      data: {
-        n8nExecutionId: n8nExecutionId || campaign.n8nExecutionId,
-      },
-    });
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        id: updatedCampaign.id,
-        name: updatedCampaign.name,
-        status: updatedCampaign.status,
-        n8nExecutionId: updatedCampaign.n8nExecutionId,
-        pendingMessages: pendingCount,
-      },
-      message: "Campaign resumed successfully",
-    });
   } catch (error) {
     console.error("[CAMPAIGN] Error resuming campaign:", error);
     return NextResponse.json(

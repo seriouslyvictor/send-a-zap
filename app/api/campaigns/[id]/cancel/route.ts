@@ -16,14 +16,27 @@ interface RouteParams {
  * POST /api/campaigns/[id]/cancel
  * Cancel a paused campaign
  *
- * Note: This permanently stops a campaign. The campaign can only be deleted after cancellation.
- * Only PAUSED campaigns can be cancelled.
+ * REFACTORED: Business logic moved to n8n workflow
+ * API Route responsibilities:
+ * 1. Validate campaign exists and is PAUSED
+ * 2. Set cancel flag (status = CANCELLED) to signal n8n
+ * 3. Return success response
+ *
+ * n8n workflow responsibilities (business logic):
+ * - Detect cancel flag (if workflow is still running)
+ * - Stop processing immediately
+ * - Mark all QUEUED/PENDING messages as CANCELLED or FAILED
+ * - Clean up resources
+ * - Log cancellation
+ *
+ * Note: Cancellation is more aggressive than pause - no waiting for in-flight messages
+ * Database flag approach: Campaign status acts as coordination flag
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
 
-    // Fetch campaign
+    // Validate campaign exists
     const campaign = await prisma.campaign.findUnique({
       where: { id },
       select: { id: true, name: true, status: true },
@@ -47,7 +60,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Update campaign status to CANCELLED
+    // Set cancel flag (n8n will detect this if workflow is still active)
     const updatedCampaign = await prisma.campaign.update({
       where: { id },
       data: {
@@ -55,17 +68,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       },
     });
 
-    // Revert any QUEUED or PENDING messages back to PENDING
-    // This ensures message state is clean for potential future operations
-    const updatedMessages = await prisma.message.updateMany({
-      where: {
-        campaignId: id,
-        status: { in: [MessageStatus.QUEUED, MessageStatus.PENDING] },
-      },
-      data: {
-        status: MessageStatus.PENDING,
-      },
-    });
+    // Note: Message cleanup is now handled by n8n workflow or left as-is
+    // Since campaign is PAUSED, there's no active workflow to signal
+    // Messages remain in their current state (PENDING, QUEUED, SENT, etc.)
+    // n8n can optionally clean up messages if needed
 
     return NextResponse.json({
       success: true,
@@ -73,7 +79,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         id: updatedCampaign.id,
         name: updatedCampaign.name,
         status: updatedCampaign.status,
-        messagesReverted: updatedMessages.count,
       },
       message: "Campaign cancelled successfully",
     });

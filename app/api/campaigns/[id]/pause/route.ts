@@ -16,15 +16,26 @@ interface RouteParams {
  * POST /api/campaigns/[id]/pause
  * Pause a running campaign
  *
- * Note: This sets the campaign status to PAUSED. The n8n workflow
- * should check campaign status before processing each message batch
- * and stop if PAUSED.
+ * REFACTORED: Business logic moved to n8n workflow
+ * API Route responsibilities:
+ * 1. Validate campaign exists and is RUNNING
+ * 2. Set pause flag (status = PAUSED) to signal n8n
+ * 3. Return success response
+ *
+ * n8n workflow responsibilities (business logic):
+ * - Detect pause flag (check campaign.status before each batch)
+ * - Stop processing new messages
+ * - Wait for in-flight messages to complete
+ * - Revert QUEUED messages back to PENDING
+ * - Confirm pause completion
+ *
+ * Database flag approach: Campaign status acts as coordination flag
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
 
-    // Fetch campaign
+    // Validate campaign exists
     const campaign = await prisma.campaign.findUnique({
       where: { id },
       select: { id: true, name: true, status: true },
@@ -49,7 +60,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Update campaign status to PAUSED
+    // Set pause flag (n8n will detect this and handle cleanup)
     const updatedCampaign = await prisma.campaign.update({
       where: { id },
       data: {
@@ -57,16 +68,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       },
     });
 
-    // Revert QUEUED messages back to PENDING
-    const updatedMessages = await prisma.message.updateMany({
-      where: {
-        campaignId: id,
-        status: MessageStatus.QUEUED,
-      },
-      data: {
-        status: MessageStatus.PENDING,
-      },
-    });
+    // Note: Message state reversal is now handled by n8n workflow
+    // The workflow checks campaign.status before each batch and stops processing
+    // when it detects PAUSED status, then reverts QUEUED messages to PENDING
 
     return NextResponse.json({
       success: true,
@@ -74,9 +78,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         id: updatedCampaign.id,
         name: updatedCampaign.name,
         status: updatedCampaign.status,
-        messagesReverted: updatedMessages.count,
       },
-      message: "Campaign paused successfully",
+      message: "Pause signal sent. Campaign will stop after current batch completes.",
     });
   } catch (error) {
     console.error("[CAMPAIGN] Error pausing campaign:", error);

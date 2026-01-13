@@ -137,6 +137,10 @@ export function CampaignWizard({
 
       // Start campaign if requested
       if (startImmediately) {
+        // Wait 100ms for database transaction to fully commit
+        // This prevents race conditions where the start endpoint reads stale data
+        await new Promise(resolve => setTimeout(resolve, 100));
+
         const startResponse = await fetch(`/api/campaigns/${campaignId}/start`, {
           method: "POST",
         });
