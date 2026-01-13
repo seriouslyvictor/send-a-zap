@@ -1,0 +1,334 @@
+{
+  "name": "Global Error Handler",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "error-trigger",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract error information and campaign ID\nconst errorData = $input.item.json;\n\n// Get workflow execution data\nconst workflowId = errorData.workflow?.id;\nconst workflowName = errorData.workflow?.name;\nconst executionId = errorData.execution?.id;\nconst errorNode = errorData.node?.name;\nconst errorMessage = errorData.error?.message || 'Unknown error';\nconst errorStack = errorData.error?.stack || '';\n\n// Try to extract campaign ID from various possible locations\nlet campaignId = null;\n\n// Check if it's in the error trigger data\nif (errorData.data?.main?.[0]?.[0]?.json?.campaignId) {\n  campaignId = errorData.data.main[0][0].json.campaignId;\n}\n\n// Check if Webhook Trigger data is available\nif (!campaignId && errorData.data?.main?.[0]) {\n  for (const item of errorData.data.main[0]) {\n    if (item.json?.campaignId) {\n      campaignId = item.json.campaignId;\n      break;\n    }\n  }\n}\n\n// Log comprehensive error information\nconsole.error('========================================');\nconsole.error('GLOBAL ERROR HANDLER TRIGGERED');\nconsole.error('========================================');\nconsole.error(`Workflow: ${workflowName} (${workflowId})`);\nconsole.error(`Execution ID: ${executionId}`);\nconsole.error(`Failed Node: ${errorNode}`);\nconsole.error(`Error Message: ${errorMessage}`);\nconsole.error(`Campaign ID: ${campaignId || 'NOT FOUND'}`);\nconsole.error('----------------------------------------');\nconsole.error(`Stack Trace: ${errorStack}`);\nconsole.error('========================================');\n\nreturn [{\n  json: {\n    workflowId,\n    workflowName,\n    executionId,\n    errorNode,\n    errorMessage,\n    errorStack,\n    campaignId,\n    timestamp: new Date().toISOString(),\n    hasCampaignId: !!campaignId\n  }\n}];"
+      },
+      "id": "extract-error-info",
+      "name": "Extract Error Info",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-campaign-id",
+              "leftValue": "={{ $json.hasCampaignId }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-has-campaign-id",
+      "name": "Has Campaign ID?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE campaigns SET status = 'FAILED', completed_at = NOW() WHERE id = '{{ $json.campaignId }}' RETURNING *",
+        "options": {}
+      },
+      "id": "mark-campaign-failed",
+      "name": "Mark Campaign FAILED",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [900, 200],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "PostgreSQL"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log that campaign was marked as FAILED\nconst campaignId = $('Extract Error Info').item.json.campaignId;\nconst errorMessage = $('Extract Error Info').item.json.errorMessage;\n\nconsole.log(`[GLOBAL ERROR HANDLER] Campaign ${campaignId} marked as FAILED`);\nconsole.log(`[GLOBAL ERROR HANDLER] Reason: ${errorMessage}`);\n\nreturn [$json];"
+      },
+      "id": "log-campaign-failed",
+      "name": "Log Campaign Failed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// DB update failed - log for manual intervention\nconst campaignId = $('Extract Error Info').item.json.campaignId;\nconst originalError = $('Extract Error Info').item.json.errorMessage;\nconst dbError = $json.error || 'Unknown DB error';\n\nconsole.error('[CRITICAL] Failed to mark campaign as FAILED in database!');\nconsole.error(`Campaign ID: ${campaignId}`);\nconsole.error(`Original Error: ${originalError}`);\nconsole.error(`DB Error: ${dbError}`);\nconsole.error('MANUAL INTERVENTION REQUIRED: Update campaign status manually');\n\nreturn [$json];"
+      },
+      "id": "log-db-update-failed",
+      "name": "Log DB Update Failed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 320]
+    },
+    {
+      "parameters": {
+        "jsCode": "// No campaign ID found - log for investigation\nconst workflowName = $json.workflowName;\nconst executionId = $json.executionId;\nconst errorNode = $json.errorNode;\nconst errorMessage = $json.errorMessage;\n\nconsole.warn('[WARNING] Error in workflow but no campaign ID found');\nconsole.warn(`Workflow: ${workflowName}`);\nconsole.warn(`Execution ID: ${executionId}`);\nconsole.warn(`Failed Node: ${errorNode}`);\nconsole.warn(`Error: ${errorMessage}`);\nconsole.warn('This may be a non-campaign workflow or error occurred before campaign ID was set');\n\nreturn [$json];"
+      },
+      "id": "log-no-campaign-id",
+      "name": "Log No Campaign ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {},
+      "id": "merge-paths",
+      "name": "Merge Paths",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1340, 300],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-notifications-enabled",
+              "leftValue": "={{ $env.ERROR_NOTIFICATIONS_ENABLED }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-notifications-enabled",
+      "name": "Notifications Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare notification payload\nconst errorInfo = $('Extract Error Info').item.json;\n\nconst notificationData = {\n  title: `🚨 Campaign Workflow Error`,\n  message: `Campaign ${errorInfo.campaignId || 'UNKNOWN'} failed in workflow ${errorInfo.workflowName}`,\n  details: {\n    campaignId: errorInfo.campaignId,\n    workflow: errorInfo.workflowName,\n    executionId: errorInfo.executionId,\n    failedNode: errorInfo.errorNode,\n    error: errorInfo.errorMessage,\n    timestamp: errorInfo.timestamp\n  },\n  severity: 'error',\n  // Format for Slack-style notification\n  slackText: `🚨 *Campaign Workflow Error*\\n\\n` +\n    `*Campaign ID:* ${errorInfo.campaignId || 'UNKNOWN'}\\n` +\n    `*Workflow:* ${errorInfo.workflowName}\\n` +\n    `*Failed Node:* ${errorInfo.errorNode}\\n` +\n    `*Error:* ${errorInfo.errorMessage}\\n` +\n    `*Execution ID:* ${errorInfo.executionId}\\n` +\n    `*Time:* ${errorInfo.timestamp}`,\n  // Format for email notification\n  emailSubject: `Campaign ${errorInfo.campaignId || 'UNKNOWN'} Failed`,\n  emailBody: `\n    <h2>Campaign Workflow Error</h2>\n    <p><strong>Campaign ID:</strong> ${errorInfo.campaignId || 'UNKNOWN'}</p>\n    <p><strong>Workflow:</strong> ${errorInfo.workflowName}</p>\n    <p><strong>Failed Node:</strong> ${errorInfo.errorNode}</p>\n    <p><strong>Error Message:</strong> ${errorInfo.errorMessage}</p>\n    <p><strong>Execution ID:</strong> ${errorInfo.executionId}</p>\n    <p><strong>Timestamp:</strong> ${errorInfo.timestamp}</p>\n    <hr>\n    <p><em>This is an automated notification from n8n Global Error Handler</em></p>\n  `\n};\n\nreturn [{ json: notificationData }];"
+      },
+      "id": "prepare-notification",
+      "name": "Prepare Notification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Placeholder for notification integration\n// This node can be replaced with actual notification service:\n// - Slack: Use Slack node with webhook\n// - Email: Use Email node\n// - Discord: Use Discord node\n// - Custom webhook: Use HTTP Request node\n\nconst notification = $json;\n\nconsole.log('[NOTIFICATION] Would send notification:');\nconsole.log(notification.slackText);\n\n// TODO: Replace this with actual notification service\n// Example for Slack:\n// POST to Slack webhook URL with notification.slackText\n\nreturn [$json];"
+      },
+      "id": "send-notification",
+      "name": "Send Notification (TODO)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 200]
+    },
+    {
+      "parameters": {},
+      "id": "end",
+      "name": "End",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2220, 300]
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Error Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Error Info": {
+      "main": [
+        [
+          {
+            "node": "Has Campaign ID?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Campaign ID?": {
+      "main": [
+        [
+          {
+            "node": "Mark Campaign FAILED",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log No Campaign ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Campaign FAILED": {
+      "main": [
+        [
+          {
+            "node": "Log Campaign Failed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log DB Update Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Campaign Failed": {
+      "main": [
+        [
+          {
+            "node": "Merge Paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log DB Update Failed": {
+      "main": [
+        [
+          {
+            "node": "Merge Paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log No Campaign ID": {
+      "main": [
+        [
+          {
+            "node": "Merge Paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Paths": {
+      "main": [
+        [
+          {
+            "node": "Notifications Enabled?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notifications Enabled?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Notification",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "End",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Notification": {
+      "main": [
+        [
+          {
+            "node": "Send Notification (TODO)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Notification (TODO)": {
+      "main": [
+        [
+          {
+            "node": "End",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "any"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "id": "error-handling",
+      "name": "Error Handling"
+    },
+    {
+      "id": "campaign",
+      "name": "Campaign"
+    }
+  ],
+  "triggerCount": 0,
+  "versionId": "1.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "",
+    "description": "Global error handler that catches all workflow errors and marks campaigns as FAILED"
+  }
+}

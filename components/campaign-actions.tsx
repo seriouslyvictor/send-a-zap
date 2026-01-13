@@ -9,6 +9,7 @@ import {
   RotateCcw,
   Trash2,
   Loader2,
+  XCircle,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -90,6 +91,17 @@ function getResumeDisabledReason(status: CampaignStatusType): string {
   }
 }
 
+function getCancelDisabledReason(status: CampaignStatusType): string {
+  switch (status) {
+    case "DRAFT": return "Use 'Excluir' para remover rascunhos";
+    case "RUNNING": return "Pause a convocacao antes de cancelar";
+    case "COMPLETED": return "Convocacao ja foi concluida";
+    case "CANCELLED": return "Convocacao ja esta cancelada";
+    case "FAILED": return "Use 'Excluir' para remover convocacoes falhas";
+    default: return "Nao e possivel cancelar neste status";
+  }
+}
+
 function getDeleteDisabledReason(status: CampaignStatusType): string {
   switch (status) {
     case "RUNNING": return "Pause a convocacao antes de excluir";
@@ -138,6 +150,24 @@ const ACTIONS: ActionConfig[] = [
     isEnabled: (status) => status === "PAUSED",
     disabledReason: getResumeDisabledReason,
     action: (campaign) => postCampaignAction(campaign.id, "resume", "Erro ao continuar convocacao"),
+  },
+  {
+    id: "cancel",
+    label: "Cancelar",
+    description: "Cancelar permanentemente a convocacao pausada",
+    icon: <XCircle className="w-4 h-4" />,
+    variant: "destructive",
+    showSeparatorAfter: true,
+    isEnabled: (status) => status === "PAUSED",
+    disabledReason: getCancelDisabledReason,
+    action: async (campaign) => {
+      const confirmed = confirm(
+        `Tem certeza que deseja cancelar a convocacao "${campaign.name}"? Esta acao nao pode ser desfeita.`
+      );
+      if (!confirmed) return;
+
+      await postCampaignAction(campaign.id, "cancel", "Erro ao cancelar convocacao");
+    },
   },
   {
     id: "delete",

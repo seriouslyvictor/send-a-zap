@@ -1,0 +1,763 @@
+{
+  "name": "Campaign Executor",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "campaign-executor",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "campaign-executor"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM campaigns WHERE id = '{{ $json.campaignId }}' LIMIT 1",
+        "options": {}
+      },
+      "id": "get-campaign",
+      "name": "Get Campaign",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [460, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-status-check",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "RUNNING",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-campaign-status",
+      "name": "Check Campaign Status",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: 'Campaign started', executionId: $execution.id, campaignId: $('Webhook Trigger').item.json.campaignId }) }}",
+        "options": {}
+      },
+      "id": "respond-success",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: 'Campaign is not in RUNNING status', status: $json.status }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error-status",
+      "name": "Respond Error Status",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [900, 420]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM messages WHERE campaign_id = '{{ $('Webhook Trigger').item.json.campaignId }}' AND status IN ('PENDING', 'QUEUED') ORDER BY created_at ASC",
+        "options": {}
+      },
+      "id": "get-pending-messages",
+      "name": "Get Pending Messages",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1120, 200],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get campaign config from webhook trigger\nconst config = $('Webhook Trigger').item.json;\nconst batchSize = config.batchSize || 50;\nconst messages = $input.all();\n\n// Split messages into batches\nconst batches = [];\nfor (let i = 0; i < messages.length; i += batchSize) {\n  batches.push({\n    batchIndex: Math.floor(i / batchSize),\n    messages: messages.slice(i, i + batchSize).map(m => m.json),\n    totalBatches: Math.ceil(messages.length / batchSize),\n    totalMessages: messages.length,\n    campaignId: config.campaignId,\n    instanceName: config.instanceName || 'whatsapp-main',\n    messageDelay: config.messageDelay || 2,\n    batchDelay: config.batchDelay || 30,\n    autoRetry: config.autoRetry || false,\n    maxRetries: config.maxRetries || 3\n  });\n}\n\n// If no messages, return empty batch to handle completion\nif (batches.length === 0) {\n  return [{\n    json: {\n      batchIndex: 0,\n      messages: [],\n      totalBatches: 0,\n      totalMessages: 0,\n      campaignId: config.campaignId,\n      instanceName: config.instanceName || 'whatsapp-main',\n      messageDelay: config.messageDelay || 2,\n      batchDelay: config.batchDelay || 30,\n      noMessages: true\n    }\n  }];\n}\n\nreturn batches.map(batch => ({ json: batch }));"
+      },
+      "id": "split-into-batches",
+      "name": "Split Into Batches",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-has-messages",
+              "leftValue": "={{ $json.noMessages }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-has-messages",
+      "name": "Has Messages?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1560, 200]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "loop-batches",
+      "name": "Loop Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1780, 100]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT status FROM campaigns WHERE id = '{{ $('Webhook Trigger').item.json.campaignId }}' LIMIT 1",
+        "options": {}
+      },
+      "id": "check-campaign-status-loop",
+      "name": "Check Status In Loop",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [2000, 100],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-still-running",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "RUNNING",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "is-still-running",
+      "name": "Still Running?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2220, 100]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract messages from current batch\nconst batch = $('Loop Batches').item.json;\nconst messages = batch.messages || [];\n\n// Return each message as separate item for processing\nreturn messages.map(msg => ({\n  json: {\n    ...msg,\n    campaignId: batch.campaignId,\n    instanceName: batch.instanceName,\n    messageDelay: batch.messageDelay,\n    batchIndex: batch.batchIndex,\n    totalBatches: batch.totalBatches\n  }\n}));"
+      },
+      "id": "extract-batch-messages",
+      "name": "Extract Batch Messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2440, 0]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "loop-messages",
+      "name": "Loop Messages",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [2660, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://evolution-api:8080/message/sendText/{{ $json.instanceName }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.phone }}\",\n  \"text\": \"{{ $json.rendered_message }}\"\n}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "send-message",
+      "name": "Send Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2880, 0],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "evolution-api-key",
+          "name": "Evolution API Key"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-send-success",
+              "leftValue": "={{ $json.statusCode }}",
+              "rightValue": 200,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "condition-send-success-201",
+              "leftValue": "={{ $json.statusCode }}",
+              "rightValue": 201,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "check-send-result",
+      "name": "Send Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [3100, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE messages SET status = 'SENT', sent_at = NOW(), message_id = '{{ $json.body.key.id }}' WHERE id = '{{ $('Loop Messages').item.json.id }}' RETURNING *",
+        "options": {}
+      },
+      "id": "update-message-sent",
+      "name": "Update Message Sent",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [3320, -100],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE messages SET status = 'FAILED', error_message = '{{ $json.body.message || $json.error || \"Unknown error\" }}', retry_count = retry_count + 1 WHERE id = '{{ $('Loop Messages').item.json.id }}' RETURNING *",
+        "options": {}
+      },
+      "id": "update-message-failed",
+      "name": "Update Message Failed",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [3320, 100],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE campaigns SET sent_count = sent_count + 1 WHERE id = '{{ $('Webhook Trigger').item.json.campaignId }}'",
+        "options": {}
+      },
+      "id": "increment-sent-count",
+      "name": "Increment Sent Count",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [3540, -100],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE campaigns SET failed_count = failed_count + 1 WHERE id = '{{ $('Webhook Trigger').item.json.campaignId }}'",
+        "options": {}
+      },
+      "id": "increment-failed-count",
+      "name": "Increment Failed Count",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [3540, 100],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Loop Batches').item.json.messageDelay }}",
+        "unit": "seconds"
+      },
+      "id": "wait-message-delay",
+      "name": "Wait Message Delay",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [3760, 0],
+      "webhookId": "message-delay-wait"
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Loop Batches').item.json.batchDelay }}",
+        "unit": "seconds"
+      },
+      "id": "wait-batch-delay",
+      "name": "Wait Batch Delay",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2440, 200],
+      "webhookId": "batch-delay-wait"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE campaigns SET status = 'COMPLETED', completed_at = NOW() WHERE id = '{{ $('Webhook Trigger').item.json.campaignId }}' AND status = 'RUNNING' RETURNING *",
+        "options": {}
+      },
+      "id": "mark-campaign-completed",
+      "name": "Mark Campaign Completed",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [2000, 320],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE campaigns SET status = 'COMPLETED', completed_at = NOW() WHERE id = '{{ $('Webhook Trigger').item.json.campaignId }}' RETURNING *",
+        "options": {}
+      },
+      "id": "mark-completed-no-messages",
+      "name": "Mark Completed (No Messages)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1780, 320],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Campaign was paused or cancelled during execution\nconst campaignId = $('Webhook Trigger').item.json.campaignId;\nconst currentStatus = $('Check Status In Loop').item.json.status;\n\nconsole.log(`Campaign ${campaignId} is now ${currentStatus}, stopping execution`);\n\nreturn [{\n  json: {\n    campaignId,\n    status: currentStatus,\n    message: `Campaign execution stopped - status changed to ${currentStatus}`\n  }\n}];"
+      },
+      "id": "handle-campaign-stopped",
+      "name": "Handle Campaign Stopped",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2440, 320]
+    },
+    {
+      "parameters": {},
+      "id": "no-op-end",
+      "name": "End",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2660, 320]
+    },
+    {
+      "parameters": {},
+      "id": "merge-after-message",
+      "name": "Merge After Message",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [3760, 100],
+      "alwaysOutputData": true
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Campaign": {
+      "main": [
+        [
+          {
+            "node": "Check Campaign Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Campaign Status": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Error Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond Success": {
+      "main": [
+        [
+          {
+            "node": "Get Pending Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Pending Messages": {
+      "main": [
+        [
+          {
+            "node": "Split Into Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Into Batches": {
+      "main": [
+        [
+          {
+            "node": "Has Messages?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Messages?": {
+      "main": [
+        [
+          {
+            "node": "Loop Batches",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark Completed (No Messages)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Batches": {
+      "main": [
+        [
+          {
+            "node": "Mark Campaign Completed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Status In Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Status In Loop": {
+      "main": [
+        [
+          {
+            "node": "Still Running?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Still Running?": {
+      "main": [
+        [
+          {
+            "node": "Extract Batch Messages",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Campaign Stopped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Batch Messages": {
+      "main": [
+        [
+          {
+            "node": "Loop Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Messages": {
+      "main": [
+        [
+          {
+            "node": "Wait Batch Delay",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Message": {
+      "main": [
+        [
+          {
+            "node": "Send Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Success?": {
+      "main": [
+        [
+          {
+            "node": "Update Message Sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Message Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Message Sent": {
+      "main": [
+        [
+          {
+            "node": "Increment Sent Count",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Message Failed": {
+      "main": [
+        [
+          {
+            "node": "Increment Failed Count",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Increment Sent Count": {
+      "main": [
+        [
+          {
+            "node": "Wait Message Delay",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Increment Failed Count": {
+      "main": [
+        [
+          {
+            "node": "Merge After Message",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Wait Message Delay": {
+      "main": [
+        [
+          {
+            "node": "Merge After Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge After Message": {
+      "main": [
+        [
+          {
+            "node": "Loop Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Batch Delay": {
+      "main": [
+        [
+          {
+            "node": "Loop Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Campaign Stopped": {
+      "main": [
+        [
+          {
+            "node": "End",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "id": "campaign",
+      "name": "Campaign"
+    },
+    {
+      "id": "whatsapp",
+      "name": "WhatsApp"
+    }
+  ],
+  "triggerCount": 1,
+  "versionId": "1.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": ""
+  }
+}

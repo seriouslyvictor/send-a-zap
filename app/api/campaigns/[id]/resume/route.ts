@@ -19,9 +19,14 @@ interface RouteParams {
  * Flow:
  * 1. Validate campaign is PAUSED
  * 2. Check for remaining PENDING messages
- * 3. Update campaign status to RUNNING
- * 4. Trigger n8n workflow
- * 5. Return success
+ * 3. Update campaign status to RUNNING (BEFORE calling n8n)
+ * 4. Update messages from PENDING to QUEUED
+ * 5. Trigger n8n workflow
+ * 6. If n8n fails, rollback status to PAUSED and messages to PENDING
+ * 7. Store execution ID and return success
+ *
+ * CRITICAL: DB must be updated BEFORE triggering n8n, not after.
+ * The n8n workflow checks for status == RUNNING immediately.
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
@@ -92,6 +97,26 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // CRITICAL: Update campaign status to RUNNING *BEFORE* triggering n8n
+    // n8n workflow checks for RUNNING status immediately, so DB must be updated first
+    await prisma.campaign.update({
+      where: { id },
+      data: {
+        status: CampaignStatus.RUNNING,
+      },
+    });
+
+    // Update pending messages to QUEUED
+    await prisma.message.updateMany({
+      where: {
+        campaignId: id,
+        status: MessageStatus.PENDING,
+      },
+      data: {
+        status: MessageStatus.QUEUED,
+      },
+    });
+
     // Trigger n8n workflow
     let n8nExecutionId: string | undefined;
 
@@ -128,6 +153,24 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     } catch (error) {
       console.error("[CAMPAIGN] Failed to trigger n8n workflow for resume:", error);
 
+      // Rollback campaign status to PAUSED and messages back to PENDING
+      await prisma.campaign.update({
+        where: { id },
+        data: {
+          status: CampaignStatus.PAUSED,
+        },
+      });
+
+      await prisma.message.updateMany({
+        where: {
+          campaignId: id,
+          status: MessageStatus.QUEUED,
+        },
+        data: {
+          status: MessageStatus.PENDING,
+        },
+      });
+
       return NextResponse.json(
         {
           success: false,
@@ -137,23 +180,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Update campaign to RUNNING
+    // Store n8n execution ID
     const updatedCampaign = await prisma.campaign.update({
       where: { id },
       data: {
-        status: CampaignStatus.RUNNING,
         n8nExecutionId: n8nExecutionId || campaign.n8nExecutionId,
-      },
-    });
-
-    // Update pending messages to QUEUED
-    await prisma.message.updateMany({
-      where: {
-        campaignId: id,
-        status: MessageStatus.PENDING,
-      },
-      data: {
-        status: MessageStatus.QUEUED,
       },
     });
 
