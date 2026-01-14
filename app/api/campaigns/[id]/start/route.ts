@@ -92,7 +92,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Trigger n8n workflow (n8n handles ALL state transitions and business logic)
     try {
-      const webhookUrl = `${n8nWebhookUrl}/campaign-executor`;
+      const webhookUrl = `${n8nWebhookUrl}/webhook/campaign/start`;
       console.log(`[CAMPAIGN] Triggering n8n webhook: ${webhookUrl}`);
 
       const n8nResponse = await fetch(webhookUrl, {
