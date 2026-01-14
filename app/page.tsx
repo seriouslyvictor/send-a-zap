@@ -22,19 +22,7 @@ import { UploadContactsModal } from "@/components/modals/upload-contacts-modal";
 import { CampaignWizard } from "@/components/modals/campaign-wizard";
 import { CampaignDetailsModal } from "@/components/modals/campaign-details-modal";
 import { EmptyState } from "@/components/ui/empty-state-beautiful-accessible-no-data-states";
-
-interface Campaign {
-  id: string;
-  name: string;
-  status: string;
-  totalContacts: number;
-  sentCount: number;
-  deliveredCount: number;
-  readCount: number;
-  failedCount: number;
-  createdAt: string;
-  startedAt?: string;
-}
+import { Campaign, CAMPAIGN_STATUS_CONFIG, CampaignStatusType } from "@/types/campaign";
 
 export default function DashboardPage() {
   // Modal states
@@ -48,42 +36,46 @@ export default function DashboardPage() {
   const [recentCampaigns, setRecentCampaigns] = useState<Campaign[]>([]);
   const [isLoadingActive, setIsLoadingActive] = useState(true);
   const [isLoadingRecent, setIsLoadingRecent] = useState(true);
+  const [isInitialLoadActive, setIsInitialLoadActive] = useState(true);
+  const [isInitialLoadRecent, setIsInitialLoadRecent] = useState(true);
 
   // Mock data for demonstration (stats will be calculated from real data later)
   const stats = [
     {
       icon: <MailIcon size={20} />,
-      title: "Sent Today",
+      title: "Enviadas Hoje",
       value: "1,234",
-      subtitle: "↑ 12% vs yesterday",
+      subtitle: "↑ 12% vs ontem",
       trend: "up",
     },
     {
       icon: <CheckIcon size={20} />,
-      title: "Delivered",
+      title: "Entregues",
       value: "1,156",
-      subtitle: "94% delivery rate",
+      subtitle: "94% taxa de entrega",
       trend: "up",
     },
     {
       icon: <CheckListIcon size={20} />,
-      title: "Read",
+      title: "Lidas",
       value: "892",
-      subtitle: "72% read rate",
+      subtitle: "72% taxa de leitura",
       trend: "neutral",
     },
     {
       icon: <CrossIcon size={20} />,
-      title: "Failed",
+      title: "Falhadas",
       value: "78",
-      subtitle: "6% failure rate",
+      subtitle: "6% taxa de falha",
       trend: "down",
     },
   ];
 
   // Fetch active campaigns (RUNNING status)
-  const fetchActiveCampaigns = async () => {
-    setIsLoadingActive(true);
+  const fetchActiveCampaigns = async (isInitialLoad = false) => {
+    if (isInitialLoad) {
+      setIsLoadingActive(true);
+    }
     try {
       const response = await fetch("/api/campaigns?status=RUNNING");
       const data = await response.json();
@@ -91,15 +83,20 @@ export default function DashboardPage() {
         setActiveCampaigns(data.data);
       }
     } catch (error) {
-      console.error("Error fetching active campaigns:", error);
+      console.error("Erro ao buscar campanhas ativas:", error);
     } finally {
-      setIsLoadingActive(false);
+      if (isInitialLoad) {
+        setIsLoadingActive(false);
+        setIsInitialLoadActive(false);
+      }
     }
   };
 
   // Fetch recent campaigns (top 10 latest created)
-  const fetchRecentCampaigns = async () => {
-    setIsLoadingRecent(true);
+  const fetchRecentCampaigns = async (isInitialLoad = false) => {
+    if (isInitialLoad) {
+      setIsLoadingRecent(true);
+    }
     try {
       const response = await fetch("/api/campaigns?limit=10");
       const data = await response.json();
@@ -107,22 +104,37 @@ export default function DashboardPage() {
         setRecentCampaigns(data.data);
       }
     } catch (error) {
-      console.error("Error fetching recent campaigns:", error);
+      console.error("Erro ao buscar campanhas recentes:", error);
     } finally {
-      setIsLoadingRecent(false);
+      if (isInitialLoad) {
+        setIsLoadingRecent(false);
+        setIsInitialLoadRecent(false);
+      }
     }
   };
 
   // Load data on mount
   useEffect(() => {
-    fetchActiveCampaigns();
-    fetchRecentCampaigns();
+    fetchActiveCampaigns(true);
+    fetchRecentCampaigns(true);
   }, []);
+
+  // Polling for active campaigns (every 5 seconds)
+  useEffect(() => {
+    // Only poll if there are active campaigns and initial load is done
+    if (activeCampaigns.length === 0 || isInitialLoadActive) return;
+
+    const pollInterval = setInterval(() => {
+      fetchActiveCampaigns(false); // false = not initial load, don't show spinner
+    }, 5000); // 5 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [activeCampaigns.length, isInitialLoadActive]);
 
   // Refresh data when campaign wizard closes
   const handleCampaignCreated = () => {
-    fetchActiveCampaigns();
-    fetchRecentCampaigns();
+    fetchActiveCampaigns(false); // Don't show loading spinner on refresh
+    fetchRecentCampaigns(false); // Don't show loading spinner on refresh
   };
 
   // Calculate progress percentage
@@ -134,7 +146,7 @@ export default function DashboardPage() {
   // Format date
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    return date.toLocaleDateString("pt-BR", { month: "short", day: "numeric" });
   };
 
   // Get trend color class
@@ -148,6 +160,15 @@ export default function DashboardPage() {
         return "text-gray-500 dark:text-gray-400";
     }
   }
+
+  // Get status badge config (using single source of truth)
+  const getStatusBadge = (status: string) => {
+    return CAMPAIGN_STATUS_CONFIG[status as CampaignStatusType] || {
+      color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+      label: status,
+      variant: "outline" as const
+    };
+  };
 
   return (
     <div className="space-y-8">
@@ -177,21 +198,21 @@ export default function DashboardPage() {
       {/* Quick Actions */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Quick Actions</CardTitle>
+          <CardTitle className="text-base">Ações Rápidas</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex gap-3">
             <Button variant="default" onClick={() => setUploadContactsOpen(true)}>
               <Upload className="w-4 h-4 mr-2" />
-              Upload Contacts
+              Upload de Contatos
             </Button>
             <Button variant="default" onClick={() => setCampaignWizardOpen(true)}>
               <Edit className="w-4 h-4 mr-2" />
-              New Campaign
+              Nova Campanha
             </Button>
             <Button variant="outline">
               <BarChart className="w-4 h-4 mr-2" />
-              View Reports
+              Ver Relatórios
             </Button>
           </div>
         </CardContent>
@@ -200,7 +221,7 @@ export default function DashboardPage() {
       {/* Active Campaigns */}
       <Card>
         <CardHeader>
-          <CardTitle>Active Campaigns ({activeCampaigns.length})</CardTitle>
+          <CardTitle>Campanhas Ativas ({activeCampaigns.length})</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoadingActive ? (
@@ -209,9 +230,9 @@ export default function DashboardPage() {
             </div>
           ) : activeCampaigns.length === 0 ? (
             <EmptyState
-              title="No Active Campaigns"
-              message="There are currently no campaigns running. Create a new campaign to start sending messages to your contacts."
-              actionLabel="Create Campaign"
+              title="Nenhuma Campanha Ativa"
+              message="Não há campanhas em execução no momento. Crie uma nova campanha para começar a enviar mensagens aos seus contatos."
+              actionLabel="Criar Campanha"
               actionIcon={Rocket}
               onActionClick={() => setCampaignWizardOpen(true)}
               mainIcon={Play}
@@ -220,23 +241,24 @@ export default function DashboardPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
+                  <TableHead>Nome</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Progress</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>Progresso</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {activeCampaigns.map((campaign) => {
                   const progress = calculateProgress(campaign);
+                  const statusBadge = getStatusBadge(campaign.status);
                   return (
                     <TableRow key={campaign.id}>
                       <TableCell className="font-medium dark:text-gray-200">
                         {campaign.name}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="default" className="bg-green-500">
-                          Running
+                        <Badge variant="outline" className={statusBadge.color}>
+                          {statusBadge.label}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -252,23 +274,23 @@ export default function DashboardPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="sm" title="Pause campaign">
+                          <Button variant="ghost" size="sm" title="Pausar campanha">
                             <Pause className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" title="Stop campaign">
+                          <Button variant="ghost" size="sm" title="Parar campanha">
                             <X className="w-4 h-4" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
-                            title="View details"
+                            title="Ver detalhes"
                             onClick={() => {
                               setSelectedCampaign({
                                 id: campaign.id,
                                 name: campaign.name,
                                 status: campaign.status,
-                                startedAt: campaign.startedAt || "Not started",
-                                estimatedCompletion: "Calculating...",
+                                startedAt: campaign.startedAt || "Não iniciada",
+                                estimatedCompletion: "Calculando...",
                                 progress,
                                 sent: campaign.sentCount,
                                 total: campaign.totalContacts,
@@ -280,7 +302,7 @@ export default function DashboardPage() {
                                 batchDelay: 30,
                                 retries: true,
                                 maxRetries: 3,
-                                message: "Campaign message...",
+                                message: "Mensagem da campanha...",
                                 failedMessages: [],
                               });
                               setCampaignDetailsOpen(true);
@@ -303,9 +325,9 @@ export default function DashboardPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Recent Campaigns (Last 10)</CardTitle>
+            <CardTitle>Campanhas Recentes (Últimas 10)</CardTitle>
             <Button variant="link" className="text-blue-600" asChild>
-              <a href="/campaigns">View All →</a>
+              <a href="/campaigns">Ver Todas →</a>
             </Button>
           </div>
         </CardHeader>
@@ -316,9 +338,9 @@ export default function DashboardPage() {
             </div>
           ) : recentCampaigns.length === 0 ? (
             <EmptyState
-              title="No Campaigns Yet"
-              message="You haven't created any campaigns yet. Get started by creating your first campaign to send messages to your contacts."
-              actionLabel="Create First Campaign"
+              title="Ainda Não Há Campanhas"
+              message="Você ainda não criou nenhuma campanha. Comece criando sua primeira campanha para enviar mensagens aos seus contatos."
+              actionLabel="Criar Primeira Campanha"
               actionIcon={Rocket}
               onActionClick={() => setCampaignWizardOpen(true)}
               mainIcon={FolderOpen}
@@ -327,42 +349,51 @@ export default function DashboardPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Campaign Name</TableHead>
-                  <TableHead className="text-right">Sent</TableHead>
-                  <TableHead className="text-right">Delivered</TableHead>
-                  <TableHead className="text-right">Read</TableHead>
-                  <TableHead className="text-right">Failed</TableHead>
-                  <TableHead className="text-right">Date</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>Nome da Campanha</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Enviadas</TableHead>
+                  <TableHead className="text-right">Entregues</TableHead>
+                  <TableHead className="text-right">Lidas</TableHead>
+                  <TableHead className="text-right">Falhadas</TableHead>
+                  <TableHead className="text-right">Data</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recentCampaigns.map((campaign) => (
-                  <TableRow
-                    key={campaign.id}
-                    className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
-                  >
-                    <TableCell className="font-medium dark:text-gray-200">
-                      {campaign.name}
-                    </TableCell>
-                    <TableCell className="text-right">{campaign.sentCount}</TableCell>
-                    <TableCell className="text-right">
-                      {campaign.deliveredCount}
-                    </TableCell>
-                    <TableCell className="text-right">{campaign.readCount}</TableCell>
-                    <TableCell className="text-right text-red-600 dark:text-red-400">
-                      {campaign.failedCount}
-                    </TableCell>
-                    <TableCell className="text-right text-gray-500 dark:text-gray-400">
-                      {formatDate(campaign.createdAt)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" title="View report">
-                        <BarChart className="w-4 h-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {recentCampaigns.map((campaign) => {
+                  const statusBadge = getStatusBadge(campaign.status);
+                  return (
+                    <TableRow
+                      key={campaign.id}
+                      className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
+                    >
+                      <TableCell className="font-medium dark:text-gray-200">
+                        {campaign.name}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={statusBadge.color}>
+                          {statusBadge.label}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">{campaign.sentCount}</TableCell>
+                      <TableCell className="text-right">
+                        {campaign.deliveredCount}
+                      </TableCell>
+                      <TableCell className="text-right">{campaign.readCount}</TableCell>
+                      <TableCell className="text-right text-red-600 dark:text-red-400">
+                        {campaign.failedCount}
+                      </TableCell>
+                      <TableCell className="text-right text-gray-500 dark:text-gray-400">
+                        {formatDate(campaign.createdAt)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" title="Ver relatório">
+                          <BarChart className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}

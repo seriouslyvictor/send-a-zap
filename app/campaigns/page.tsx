@@ -284,7 +284,7 @@ export default function CampaignsListPage(): React.ReactElement {
                         {campaign.name}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="default" className={statusConfig.color}>
+                        <Badge variant="outline" className={statusConfig.color}>
                           {statusConfig.label}
                         </Badge>
                       </TableCell>

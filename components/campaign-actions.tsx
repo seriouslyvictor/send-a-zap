@@ -27,6 +27,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Campaign, CampaignStatusType } from "@/types/campaign";
+import { ConfirmationModal } from "@/components/modals/confirmation-modal";
 
 interface CampaignActionsProps {
   campaign: Campaign;
@@ -160,13 +161,9 @@ const ACTIONS: ActionConfig[] = [
     showSeparatorAfter: true,
     isEnabled: (status) => status === "PAUSED",
     disabledReason: getCancelDisabledReason,
-    action: async (campaign) => {
-      const confirmed = confirm(
-        `Tem certeza que deseja cancelar a convocacao "${campaign.name}"? Esta acao nao pode ser desfeita.`
-      );
-      if (!confirmed) return;
-
-      await postCampaignAction(campaign.id, "cancel", "Erro ao cancelar convocacao");
+    action: async () => {
+      // This is just a placeholder - actual action is handled via confirmation modal
+      throw new Error("Should be handled by confirmation modal");
     },
   },
   {
@@ -181,19 +178,9 @@ const ACTIONS: ActionConfig[] = [
       status === "CANCELLED" ||
       status === "FAILED",
     disabledReason: getDeleteDisabledReason,
-    action: async (campaign) => {
-      const confirmed = confirm(
-        `Tem certeza que deseja excluir a convocacao "${campaign.name}"? Esta acao nao pode ser desfeita.`
-      );
-      if (!confirmed) return;
-
-      const response = await fetch(`/api/campaigns/${campaign.id}`, {
-        method: "DELETE",
-      });
-      const data = await response.json();
-      if (!data.success) {
-        throw new Error(data.error || "Erro ao excluir convocacao");
-      }
+    action: async () => {
+      // This is just a placeholder - actual action is handled via confirmation modal
+      throw new Error("Should be handled by confirmation modal");
     },
   },
 ];
@@ -204,6 +191,13 @@ export function CampaignActions({
 }: CampaignActionsProps): React.ReactElement {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const [confirmationOpen, setConfirmationOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{
+    title: string;
+    description: string;
+    confirmLabel: string;
+    action: () => Promise<void>;
+  } | null>(null);
 
   async function handleAction(
     actionFn: (campaign: Campaign) => Promise<void>,
@@ -223,15 +217,75 @@ export function CampaignActions({
     }
   }
 
+  function openConfirmation(
+    title: string,
+    description: string,
+    confirmLabel: string,
+    action: () => Promise<void>
+  ): void {
+    setPendingAction({ title, description, confirmLabel, action });
+    setConfirmationOpen(true);
+  }
+
+  async function handleConfirmation(): Promise<void> {
+    if (!pendingAction) return;
+
+    try {
+      setIsLoading(true);
+      await pendingAction.action();
+      onActionComplete?.();
+    } catch (error) {
+      console.error("Action error:", error);
+      alert(error instanceof Error ? error.message : "Erro ao executar acao");
+    } finally {
+      setIsLoading(false);
+      setPendingAction(null);
+    }
+  }
+
   function renderMenuItem(actionConfig: ActionConfig): React.ReactElement {
     const isEnabled = actionConfig.isEnabled(campaign.status);
     const disabledReason = actionConfig.disabledReason(campaign.status);
     const isActionLoading = loadingAction === actionConfig.id;
 
+    const handleSelect = () => {
+      // Handle actions that need confirmation
+      if (actionConfig.id === "cancel") {
+        openConfirmation(
+          "Cancelar Convocação",
+          `Tem certeza que deseja cancelar a convocação "${campaign.name}"? Esta ação não pode ser desfeita.`,
+          "Sim, Cancelar",
+          async () => postCampaignAction(campaign.id, "cancel", "Erro ao cancelar convocacao")
+        );
+        return;
+      }
+
+      if (actionConfig.id === "delete") {
+        openConfirmation(
+          "Excluir Convocação",
+          `Tem certeza que deseja excluir a convocação "${campaign.name}"? Esta ação não pode ser desfeita e todos os dados serão perdidos permanentemente.`,
+          "Sim, Excluir",
+          async () => {
+            const response = await fetch(`/api/campaigns/${campaign.id}`, {
+              method: "DELETE",
+            });
+            const data = await response.json();
+            if (!data.success) {
+              throw new Error(data.error || "Erro ao excluir convocacao");
+            }
+          }
+        );
+        return;
+      }
+
+      // Handle regular actions
+      handleAction(actionConfig.action, actionConfig.id);
+    };
+
     const menuItem = (
       <DropdownMenuItem
         disabled={!isEnabled || isLoading}
-        onSelect={() => handleAction(actionConfig.action, actionConfig.id)}
+        onSelect={handleSelect}
         className={
           actionConfig.variant === "destructive"
             ? "text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400"
@@ -273,29 +327,46 @@ export function CampaignActions({
   }
 
   return (
-    <TooltipProvider>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="default" size="sm" disabled={isLoading} className="gap-1">
-            {isLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <>
-                Acoes
-                <ChevronRight className="w-4 h-4" />
-              </>
-            )}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-[280px]">
-          {ACTIONS.map((actionConfig) => (
-            <div key={actionConfig.id}>
-              {renderMenuItem(actionConfig)}
-              {actionConfig.showSeparatorAfter && <DropdownMenuSeparator />}
-            </div>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </TooltipProvider>
+    <>
+      <TooltipProvider>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="default" size="sm" disabled={isLoading} className="gap-1">
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  Acoes
+                  <ChevronRight className="w-4 h-4" />
+                </>
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-[280px]">
+            {ACTIONS.map((actionConfig) => (
+              <div key={actionConfig.id}>
+                {renderMenuItem(actionConfig)}
+                {actionConfig.showSeparatorAfter && <DropdownMenuSeparator />}
+              </div>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </TooltipProvider>
+
+      {/* Confirmation Modal */}
+      {pendingAction && (
+        <ConfirmationModal
+          open={confirmationOpen}
+          onOpenChange={setConfirmationOpen}
+          onConfirm={handleConfirmation}
+          title={pendingAction.title}
+          description={pendingAction.description}
+          confirmLabel={pendingAction.confirmLabel}
+          cancelLabel="Cancelar"
+          variant="destructive"
+          isLoading={isLoading}
+        />
+      )}
+    </>
   );
 }
