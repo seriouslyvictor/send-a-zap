@@ -1,0 +1,316 @@
+{
+  "name": "Iniciar Convocação",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "campaigns",
+          "mode": "list",
+          "cachedResultName": "campaigns"
+        },
+        "limit": 1,
+        "where": {
+          "values": [
+            {
+              "column": "id",
+              "value": "={{ $json.body.campaignId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        192,
+        -64
+      ],
+      "id": "1a2e51c2-721c-4b85-b962-81069081e378",
+      "name": "Selecionar Convocação",
+      "retryOnFail": true,
+      "credentials": {
+        "postgres": {
+          "id": "NRqHF5gz4GjrdkXH",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "8e731a3d-5ab9-4727-a00c-9d4fdab7f37e",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "PENDING",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "12988e81-7e70-40c9-b2e1-27141dce87ed",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "DRAFT",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "dd927176-234c-4137-b495-b7adb1cfce17",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "PAUSED",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        480,
+        -64
+      ],
+      "id": "782ed5a3-759e-4f49-a957-0aef7e33076d",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "HRXmB4sE64n8kcNA",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/HRXmB4sE64n8kcNA",
+          "cachedResultName": "Disparador Convocação"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "campaign_id": "={{ $json.id }}",
+            "status": "={{$json.status}}",
+            "created_at": "={{$json.started_at}}"
+          },
+          "matchingColumns": [
+            "oi"
+          ],
+          "schema": [
+            {
+              "id": "campaign_id",
+              "displayName": "campaign_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1056,
+        -208
+      ],
+      "id": "173311ef-92be-4adc-97cf-b32561d551ff",
+      "name": "Call 'Disparador Convocação'"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "campaign/start",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        -64
+      ],
+      "id": "5fe45be9-b7db-4402-b905-b9691119e5ba",
+      "name": "Webhook",
+      "webhookId": "8b5a5737-3fea-41f0-9fe4-b032206de3a4"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": 200,\n  \"success\": false,\n  \"mensagem\": \"campanha não foi iniciada\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        640,
+        16
+      ],
+      "id": "ffc964f8-018c-4d64-a12d-6d972129c917",
+      "name": "FALHA"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": 200,\n  \"success\": true,\n  \"mensagem\": \"campanha iniciada\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        624,
+        -208
+      ],
+      "id": "653b39c7-1f4c-4c13-bf77-d8192011c352",
+      "name": "SUCESSO"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE campaigns SET status = 'RUNNING', started_at = NOW() WHERE id = '{{ $('Selecionar Convocação').item.json.id }}' RETURNING id, status, started_at",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        800,
+        -208
+      ],
+      "id": "ad929122-e1bb-4e7c-b0b0-dd167a17fe45",
+      "name": "STATUS: RUNNING",
+      "retryOnFail": true,
+      "credentials": {
+        "postgres": {
+          "id": "NRqHF5gz4GjrdkXH",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Selecionar Convocação": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "SUCESSO",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FALHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Disparador Convocação'": {
+      "main": [
+        []
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Selecionar Convocação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SUCESSO": {
+      "main": [
+        [
+          {
+            "node": "STATUS: RUNNING",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "STATUS: RUNNING": {
+      "main": [
+        [
+          {
+            "node": "Call 'Disparador Convocação'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "ab0f28e8-155f-4a70-88bd-ec344cead2c6",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "30b80c2ac0a3a0be2f495c0f721488ed3525e76d079a423915218cc2f1274902"
+  },
+  "id": "5da6pM15iBqe6KGt",
+  "tags": []
+}
