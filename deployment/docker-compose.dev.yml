@@ -286,7 +286,7 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/whatsapp_automation?schema=public
       - N8N_API_URL=http://n8n:5678
       - N8N_API_KEY=${N8N_API_KEY}
-      - N8N_WEBHOOK_URL=http://n8n:5678/webhook
+      - N8N_WEBHOOK_URL=http://n8n:5678
       - EVOLUTION_API_URL=http://evolution-api:8080
       - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
       # Enable hot reload in container

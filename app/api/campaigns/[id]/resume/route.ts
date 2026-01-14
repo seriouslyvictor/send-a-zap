@@ -105,8 +105,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         throw new Error(`n8n webhook failed: ${n8nResponse.status} - ${errorText}`);
       }
 
-      const n8nData = await n8nResponse.json();
-      console.log(`[CAMPAIGN] n8n workflow triggered successfully`);
+      // n8n webhook may return JSON, HTML, or empty response - we don't need to parse it
+      // The workflow runs asynchronously and updates the database itself
+      console.log(`[CAMPAIGN] n8n workflow triggered successfully, status: ${n8nResponse.status}`);
 
       // Read updated campaign state (n8n has already updated it)
       const updatedCampaign = await prisma.campaign.findUnique({
