@@ -28,7 +28,9 @@
       "Bash(npx tsx:*)",
       "mcp__ide__getDiagnostics",
       "mcp__n8n-mcp__validate_workflow",
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "Skill(n8n-workflow-patterns)",
+      "Skill(n8n-node-configuration)"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -3,86 +3,45 @@
   "nodes": [
     {
       "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE campaigns SET delivered_count = delivered_count + 1 WHERE id = '{{ $json.campaign_id }}'",
         "options": {}
       },
-      "type": "n8n-nodes-base.splitInBatches",
-      "typeVersion": 3,
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
       "position": [
-        144,
-        -64
+        800,
+        336
       ],
-      "id": "2c54f5ba-0984-4c92-8413-b0e3c1c8ec07",
-      "name": "Loop Over Items"
+      "id": "0b49eee3-5436-4888-b7c3-5cf18e7a8aae",
+      "name": "Incrementar: Campaign Delivered",
+      "credentials": {
+        "postgres": {
+          "id": "NRqHF5gz4GjrdkXH",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "8fae22db-63fe-433b-acef-240bcc021e5d",
-              "name": "id",
-              "value": "={{ $json.id }}",
-              "type": "string"
-            },
-            {
-              "id": "80dbe43c-2750-45f6-b916-afbff6dd453c",
-              "name": "message_id",
-              "value": "={{ $('Loop Over Items').item.json.body.data.messageId }}",
-              "type": "string"
-            },
-            {
-              "id": "3960d441-c4a9-4a43-b453-dbd32a82feb8",
-              "name": "status",
-              "value": "={{ $('Loop Over Items').item.json.body.data.status }}",
-              "type": "string"
-            },
-            {
-              "id": "13c75edb-6bcf-4f06-b4c0-15abdcc68052",
-              "name": "self",
-              "value": "={{ $('Loop Over Items').item.json.body.data.fromMe }}",
-              "type": "boolean"
-            }
-          ]
-        },
+        "operation": "executeQuery",
+        "query": "=UPDATE campaigns SET read_count = read_count + 1 WHERE id = '{{ $json.campaign_id }}'",
         "options": {}
       },
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
       "position": [
-        704,
-        -48
+        800,
+        528
       ],
-      "id": "bc375c5c-a1ca-44b2-8000-740662d3cad2",
-      "name": "Normalizar Status"
-    },
-    {
-      "parameters": {
-        "jsCode": "let status;\n\nswitch ($input.first().json.status) {\n  case \"SERVER_ACK\":\n    status = 'SENT';\n    break;\n  case \"DELIVERY_ACK\":\n    status = 'DELIVERED';\n    break;\n  case \"READ\":\n    status = 'READ';\n    break;\n  default:\n    status = 'UNKNOWN';\n}\n\nreturn [{\n  json: {\n    provider_message_id: $input.first().json.message_id,\n    status,\n    provider_status_code: $input.first().json.status\n  }\n}];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        896,
-        -48
-      ],
-      "id": "3b3fedc8-b2e3-4b4d-9c16-5431520c4707",
-      "name": "Mapear Status"
-    },
-    {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "provider/status",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2.1,
-      "position": [
-        -80,
-        -64
-      ],
-      "id": "bff94ce8-fbb7-4439-916d-924608e29537",
-      "name": "Webhook",
-      "webhookId": "90b30ec5-a7f3-411c-abb2-6538f09fcb80"
+      "id": "f4a45de0-7cc7-4465-86bb-51ab1c273341",
+      "name": "Incrementar: Campaign Read",
+      "credentials": {
+        "postgres": {
+          "id": "NRqHF5gz4GjrdkXH",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -112,10 +71,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        528,
-        -48
+        -320,
+        432
       ],
-      "id": "b32080df-c944-4d10-8a0d-9e3a5b85b642",
+      "id": "ff28ce33-01d9-49b0-86af-25e4d0d94bd7",
       "name": "Verificar: Mensagem Convocação",
       "alwaysOutputData": false,
       "credentials": {
@@ -124,6 +83,130 @@
           "name": "Postgres account"
         }
       }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a993d4ae-e9be-4570-8013-24f93a0dc9d0",
+              "leftValue": "={{ $json.body.data.fromMe }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "ae1623ef-1b95-4093-b272-8c71c05c4209",
+              "leftValue": "={{ $json.body.data.status }}",
+              "rightValue": "SERVER_ACK",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        -544,
+        432
+      ],
+      "id": "bc9c4b59-2845-4fc9-9691-a7e3d169d982",
+      "name": "FIltrar"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -768,
+        432
+      ],
+      "id": "3c0cbebb-e520-47c8-9552-832e561f3532",
+      "name": "Separar Respostas"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "provider/status",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -992,
+        432
+      ],
+      "id": "d79f360e-9bc1-4344-a840-f861b3400892",
+      "name": "webhook",
+      "webhookId": "90b30ec5-a7f3-411c-abb2-6538f09fcb80"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "8fae22db-63fe-433b-acef-240bcc021e5d",
+              "name": "id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "f2a8c4e1-9b7d-4f3a-8e2c-1d5f6a9b8c7d",
+              "name": "campaign_id",
+              "value": "={{ $json.campaign_id }}",
+              "type": "string"
+            },
+            {
+              "id": "80dbe43c-2750-45f6-b916-afbff6dd453c",
+              "name": "message_id",
+              "value": "={{ $('Separar Respostas').item.json.body.data.messageId }}",
+              "type": "string"
+            },
+            {
+              "id": "3960d441-c4a9-4a43-b453-dbd32a82feb8",
+              "name": "status",
+              "value": "={{ $('Separar Respostas').item.json.body.data.status }}",
+              "type": "string"
+            },
+            {
+              "id": "13c75edb-6bcf-4f06-b4c0-15abdcc68052",
+              "name": "self",
+              "value": "={{ $('Separar Respostas').item.json.body.data.fromMe }}",
+              "type": "boolean"
+            },
+            {
+              "id": "f645193b-4710-43e2-9624-9be797805280",
+              "name": "statusAnterior",
+              "value": "={{ $json.status }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -96,
+        432
+      ],
+      "id": "66fe17fd-8a2d-4349-b0e2-f23c187d817f",
+      "name": "Normalizar Status"
     },
     {
       "parameters": {
@@ -180,226 +263,65 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        1072,
-        -48
+        704,
+        432
       ],
-      "id": "3316e6c5-f1b1-4ac0-b7f0-9e43daf9c0a1",
-      "name": "Switch"
+      "id": "bfa6fc95-462e-45ef-9ca3-d6d0faad1666",
+      "name": "Caminho"
     },
     {
       "parameters": {
-        "operation": "update",
-        "schema": {
-          "__rl": true,
-          "mode": "list",
-          "value": "public"
-        },
-        "table": {
-          "__rl": true,
-          "value": "messages",
-          "mode": "list",
-          "cachedResultName": "messages"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "id": "={{ $('Normalizar Status').item.json.id }}",
-            "status": "READ"
-          },
-          "matchingColumns": [
-            "id"
-          ],
-          "schema": [
+        "rules": {
+          "values": [
             {
-              "id": "id",
-              "displayName": "id",
-              "required": true,
-              "defaultMatch": true,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "campaign_id",
-              "displayName": "campaign_id",
-              "required": true,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": true
-            },
-            {
-              "id": "phone",
-              "displayName": "phone",
-              "required": true,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": true
-            },
-            {
-              "id": "name",
-              "displayName": "name",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": true
-            },
-            {
-              "id": "custom_data",
-              "displayName": "custom_data",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "object",
-              "canBeUsedToMatch": true,
-              "removed": true
-            },
-            {
-              "id": "rendered_message",
-              "displayName": "rendered_message",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": true
-            },
-            {
-              "id": "status",
-              "displayName": "status",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "options",
-              "canBeUsedToMatch": true,
-              "options": [
-                {
-                  "name": "FAILED",
-                  "value": "FAILED"
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
                 },
-                {
-                  "name": "READ",
-                  "value": "READ"
-                },
-                {
-                  "name": "DELIVERED",
-                  "value": "DELIVERED"
-                },
-                {
-                  "name": "SENT",
-                  "value": "SENT"
-                },
-                {
-                  "name": "QUEUED",
-                  "value": "QUEUED"
-                },
-                {
-                  "name": "PENDING",
-                  "value": "PENDING"
-                }
-              ],
-              "removed": false
-            },
-            {
-              "id": "message_id",
-              "displayName": "message_id",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": true
-            },
-            {
-              "id": "created_at",
-              "displayName": "created_at",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "dateTime",
-              "canBeUsedToMatch": true,
-              "removed": true
-            },
-            {
-              "id": "sent_at",
-              "displayName": "sent_at",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "dateTime",
-              "canBeUsedToMatch": true,
-              "removed": true
-            },
-            {
-              "id": "delivered_at",
-              "displayName": "delivered_at",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "dateTime",
-              "canBeUsedToMatch": true,
-              "removed": true
-            },
-            {
-              "id": "read_at",
-              "displayName": "read_at",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "dateTime",
-              "canBeUsedToMatch": true,
-              "removed": true
-            },
-            {
-              "id": "error_message",
-              "displayName": "error_message",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": true
-            },
-            {
-              "id": "retry_count",
-              "displayName": "retry_count",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "number",
-              "canBeUsedToMatch": true,
-              "removed": true
-            },
-            {
-              "id": "last_retry_at",
-              "displayName": "last_retry_at",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "dateTime",
-              "canBeUsedToMatch": true,
-              "removed": true
+                "conditions": [
+                  {
+                    "id": "check-should-increment-delivered",
+                    "leftValue": "={{ $json.shouldIncrementDelivered }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
             }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
+          ]
         },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        928,
+        528
+      ],
+      "id": "c3d4e5f6-a7b8-6c7d-0e1f-2a3b4c5d6e7f",
+      "name": "Verificar Entrega Pulada"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE campaigns SET delivered_count = delivered_count + 1 WHERE id = '{{ $json.campaign_id }}'",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        1248,
-        32
+        1136,
+        432
       ],
-      "id": "3a463937-15a8-4dc3-8f8a-9116ee582bd9",
-      "name": "Status: LIDO",
+      "id": "d4e5f6a7-b8c9-7d8e-1f2a-3b4c5d6e7f8a",
+      "name": "Incrementar: Campaign Delivered (Pulado)",
       "credentials": {
         "postgres": {
           "id": "NRqHF5gz4GjrdkXH",
@@ -616,10 +538,10 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        1248,
-        -128
+        576,
+        336
       ],
-      "id": "a6922dbe-ba51-4e6e-bb99-a58f636028ca",
+      "id": "08f92e35-f4d9-4394-a322-885979de2df0",
       "name": "Status: ENTREGUE",
       "credentials": {
         "postgres": {
@@ -627,6 +549,253 @@
           "name": "Postgres account"
         }
       }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "messages",
+          "mode": "list",
+          "cachedResultName": "messages"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Normalizar Status').item.json.id }}",
+            "status": "READ"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": true,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "campaign_id",
+              "displayName": "campaign_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "custom_data",
+              "displayName": "custom_data",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "rendered_message",
+              "displayName": "rendered_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "options",
+              "canBeUsedToMatch": true,
+              "options": [
+                {
+                  "name": "FAILED",
+                  "value": "FAILED"
+                },
+                {
+                  "name": "READ",
+                  "value": "READ"
+                },
+                {
+                  "name": "DELIVERED",
+                  "value": "DELIVERED"
+                },
+                {
+                  "name": "SENT",
+                  "value": "SENT"
+                },
+                {
+                  "name": "QUEUED",
+                  "value": "QUEUED"
+                },
+                {
+                  "name": "PENDING",
+                  "value": "PENDING"
+                }
+              ],
+              "removed": false
+            },
+            {
+              "id": "message_id",
+              "displayName": "message_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "sent_at",
+              "displayName": "sent_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "delivered_at",
+              "displayName": "delivered_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "read_at",
+              "displayName": "read_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "retry_count",
+              "displayName": "retry_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "last_retry_at",
+              "displayName": "last_retry_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        576,
+        528
+      ],
+      "id": "132919f1-7145-4f00-bf12-d68ca04853ff",
+      "name": "Status: LIDO",
+      "credentials": {
+        "postgres": {
+          "id": "NRqHF5gz4GjrdkXH",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Preserve all fields from input and map the status\nconst input = $input.first().json;\n\nlet mappedStatus;\nswitch (input.status) {\n  case \"SERVER_ACK\":\n    mappedStatus = 'SENT';\n    break;\n  case \"DELIVERY_ACK\":\n    mappedStatus = 'DELIVERED';\n    break;\n  case \"READ\":\n    mappedStatus = 'READ';\n    break;\n  default:\n    mappedStatus = 'UNKNOWN';\n}\n\nreturn [{\n  json: {\n    id: input.id,\n    campaign_id: input.campaign_id,\n    message_id: input.message_id,\n    statusAnterior: input.statusAnterior,\n    status: mappedStatus,\n    provider_status_code: input.status\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        128,
+        432
+      ],
+      "id": "504681d8-d52d-44ad-b5df-95d344a70227",
+      "name": "Mapear Status"
+    },
+    {
+      "parameters": {
+        "jsCode": "// State hierarchy: PENDING(1) < QUEUED(2) < SENT(3) < DELIVERED(4) < READ(5)\nconst stateLevel = {\n  'PENDING': 1,\n  'QUEUED': 2,\n  'SENT': 3,\n  'DELIVERED': 4,\n  'READ': 5\n};\n\nconst input = $input.first().json;\nconst previousStatus = input.statusAnterior;\nconst newStatus = input.status;\n\n// Check if we should update\nlet shouldUpdate = false;\nlet shouldIncrementDelivered = false;\n\n// If no previous status, don't update (message wasn't properly sent)\nif (!previousStatus || previousStatus === '') {\n  shouldUpdate = false;\n} \n// If same status, skip (avoid double counting)\nelse if (previousStatus === newStatus) {\n  shouldUpdate = false;\n}\n// If new state level <= old state level, skip (state regression)\nelse if (stateLevel[newStatus] <= stateLevel[previousStatus]) {\n  shouldUpdate = false;\n}\n// Otherwise, allow update\nelse {\n  shouldUpdate = true;\n  \n  // Special case: SENT → READ (skipped DELIVERED)\n  // We need to increment delivered_count too\n  if (previousStatus === 'SENT' && newStatus === 'READ') {\n    shouldIncrementDelivered = true;\n  }\n}\n\nreturn [{\n  json: {\n    ...input,\n    shouldUpdate,\n    shouldIncrementDelivered\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        432
+      ],
+      "id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+      "name": "Verificar Progressão de Estado"
     },
     {
       "parameters": {
@@ -639,21 +808,12 @@
           },
           "conditions": [
             {
-              "id": "a993d4ae-e9be-4570-8013-24f93a0dc9d0",
-              "leftValue": "={{ $json.body.data.fromMe }}",
+              "id": "filter-should-update",
+              "leftValue": "={{ $json.shouldUpdate }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
                 "operation": "equals"
-              }
-            },
-            {
-              "id": "ae1623ef-1b95-4093-b272-8c71c05c4209",
-              "leftValue": "={{ $json.body.data.status }}",
-              "rightValue": "SERVER_ACK",
-              "operator": {
-                "type": "string",
-                "operation": "notEquals"
               }
             }
           ],
@@ -664,21 +824,95 @@
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2.3,
       "position": [
-        352,
-        -48
+        480,
+        432
       ],
-      "id": "bbaacf7e-8010-4f90-bdbe-8f04ad6994de",
-      "name": "Filter"
+      "id": "b2c3d4e5-f6a7-5b6c-9d0e-1f2a3b4c5d6e",
+      "name": "Filtrar Regressão"
     }
   ],
-  "pinData": {},
+  "pinData": {
+    "webhook": [
+      {
+        "json": {
+          "headers": {
+            "accept": "application/json, text/plain, */*",
+            "content-type": "application/json",
+            "x-instance-id": "91ed3488-2c06-42be-83d0-a290387878fc",
+            "x-instance-name": "whatsapp-main",
+            "x-event-type": "messages.update",
+            "x-timestamp": "1768479936052",
+            "user-agent": "EvolutionAPI-Webhook/2.3.7",
+            "content-length": "490",
+            "accept-encoding": "gzip, compress, deflate, br",
+            "host": "n8n:5678",
+            "connection": "keep-alive"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "event": "messages.update",
+            "instance": "whatsapp-main",
+            "data": {
+              "keyId": "AC5325750D98393657C8BCC9F219B88A",
+              "remoteJid": "54520465850387@lid",
+              "fromMe": true,
+              "status": "READ",
+              "instanceId": "91ed3488-2c06-42be-83d0-a290387878fc",
+              "messageId": "cmkfeg07i0073p9793u2741bt"
+            },
+            "destination": "http://n8n:5678/webhook/provider/status",
+            "date_time": "2026-01-15T09:25:36.049Z",
+            "sender": "5511911926036@s.whatsapp.net",
+            "server_url": "http://whatsapp_evolution:8080",
+            "apikey": "441A2903-AF49-4111-BEEA-A7DDBB7CC165"
+          },
+          "webhookUrl": "http://localhost:5678/webhook/provider/status",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
   "connections": {
-    "Loop Over Items": {
+    "Verificar: Mensagem Convocação": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FIltrar": {
+      "main": [
+        [
+          {
+            "node": "Verificar: Mensagem Convocação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Separar Respostas": {
       "main": [
         [],
         [
           {
-            "node": "Filter",
+            "node": "FIltrar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "webhook": {
+      "main": [
+        [
+          {
+            "node": "Separar Respostas",
             "type": "main",
             "index": 0
           }
@@ -696,40 +930,40 @@
         ]
       ]
     },
-    "Webhook": {
-      "main": [
-        [
-          {
-            "node": "Loop Over Items",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Mapear Status": {
       "main": [
         [
           {
-            "node": "Switch",
+            "node": "Verificar Progressão de Estado",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Verificar: Mensagem Convocação": {
+    "Verificar Progressão de Estado": {
       "main": [
         [
           {
-            "node": "Normalizar Status",
+            "node": "Filtrar Regressão",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Switch": {
+    "Filtrar Regressão": {
+      "main": [
+        [
+          {
+            "node": "Caminho",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Caminho": {
       "main": [
         [
           {
@@ -747,11 +981,51 @@
         ]
       ]
     },
-    "Filter": {
+    "Status: ENTREGUE": {
       "main": [
         [
           {
-            "node": "Verificar: Mensagem Convocação",
+            "node": "Incrementar: Campaign Delivered",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status: LIDO": {
+      "main": [
+        [
+          {
+            "node": "Verificar Entrega Pulada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Entrega Pulada": {
+      "main": [
+        [
+          {
+            "node": "Incrementar: Campaign Delivered (Pulado)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Incrementar: Campaign Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Incrementar: Campaign Delivered (Pulado)": {
+      "main": [
+        [
+          {
+            "node": "Incrementar: Campaign Read",
             "type": "main",
             "index": 0
           }
@@ -764,9 +1038,10 @@
     "executionOrder": "v1",
     "availableInMCP": true,
     "timeSavedMode": "fixed",
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "saveManualExecutions": false
   },
-  "versionId": "6850ce00-0288-4f64-a1d0-a02623b01a37",
+  "versionId": "57d205da-b291-43f8-b17d-757ebc62149d",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "30b80c2ac0a3a0be2f495c0f721488ed3525e76d079a423915218cc2f1274902"
