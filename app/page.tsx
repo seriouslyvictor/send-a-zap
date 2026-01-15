@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Upload, Edit, BarChart, Pause, X, Eye, Loader2, Play, FolderOpen, Rocket } from "lucide-react";
+import { Upload, Edit, BarChart, Pause, X, Eye, Loader2, Play, FolderOpen, Rocket, FileText } from "lucide-react";
 import { MailIcon } from "@/components/icons/mail-icon";
 import { CheckIcon } from "@/components/icons/check-icon";
 import { CheckListIcon } from "@/components/icons/check-list-icon";
@@ -21,58 +21,51 @@ import { CrossIcon } from "@/components/icons/cross-icon";
 import { UploadContactsModal } from "@/components/modals/upload-contacts-modal";
 import { CampaignWizard } from "@/components/modals/campaign-wizard";
 import { CampaignDetailsModal } from "@/components/modals/campaign-details-modal";
+import { CampaignReportModal } from "@/components/modals/campaign-report-modal";
 import { EmptyState } from "@/components/ui/empty-state-beautiful-accessible-no-data-states";
 import { Campaign, CAMPAIGN_STATUS_CONFIG, CampaignStatusType } from "@/types/campaign";
 
-export default function DashboardPage() {
+export default function DashboardPage(): React.ReactElement {
   // Modal states
   const [uploadContactsOpen, setUploadContactsOpen] = useState(false);
   const [campaignWizardOpen, setCampaignWizardOpen] = useState(false);
   const [campaignDetailsOpen, setCampaignDetailsOpen] = useState(false);
+  const [campaignReportOpen, setCampaignReportOpen] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<any>(null);
+  const [selectedCampaignForReport, setSelectedCampaignForReport] = useState<string | null>(null);
 
   // Data states
   const [activeCampaigns, setActiveCampaigns] = useState<Campaign[]>([]);
   const [recentCampaigns, setRecentCampaigns] = useState<Campaign[]>([]);
+  const [stats, setStats] = useState<any>(null);
   const [isLoadingActive, setIsLoadingActive] = useState(true);
   const [isLoadingRecent, setIsLoadingRecent] = useState(true);
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [isInitialLoadActive, setIsInitialLoadActive] = useState(true);
   const [isInitialLoadRecent, setIsInitialLoadRecent] = useState(true);
+  const [isInitialLoadStats, setIsInitialLoadStats] = useState(true);
 
-  // Mock data for demonstration (stats will be calculated from real data later)
-  const stats = [
-    {
-      icon: <MailIcon size={20} />,
-      title: "Enviadas Hoje",
-      value: "1,234",
-      subtitle: "↑ 12% vs ontem",
-      trend: "up",
-    },
-    {
-      icon: <CheckIcon size={20} />,
-      title: "Entregues",
-      value: "1,156",
-      subtitle: "94% taxa de entrega",
-      trend: "up",
-    },
-    {
-      icon: <CheckListIcon size={20} />,
-      title: "Lidas",
-      value: "892",
-      subtitle: "72% taxa de leitura",
-      trend: "neutral",
-    },
-    {
-      icon: <CrossIcon size={20} />,
-      title: "Falhadas",
-      value: "78",
-      subtitle: "6% taxa de falha",
-      trend: "down",
-    },
-  ];
+  async function fetchStats(isInitialLoad = false): Promise<void> {
+    if (isInitialLoad) {
+      setIsLoadingStats(true);
+    }
+    try {
+      const response = await fetch("/api/dashboard/stats?period=today");
+      const data = await response.json();
+      if (data.success) {
+        setStats(data.data);
+      }
+    } catch (error) {
+      console.error("Erro ao buscar estatísticas:", error);
+    } finally {
+      if (isInitialLoad) {
+        setIsLoadingStats(false);
+        setIsInitialLoadStats(false);
+      }
+    }
+  };
 
-  // Fetch active campaigns (RUNNING status)
-  const fetchActiveCampaigns = async (isInitialLoad = false) => {
+  async function fetchActiveCampaigns(isInitialLoad = false): Promise<void> {
     if (isInitialLoad) {
       setIsLoadingActive(true);
     }
@@ -92,8 +85,7 @@ export default function DashboardPage() {
     }
   };
 
-  // Fetch recent campaigns (top 10 latest created)
-  const fetchRecentCampaigns = async (isInitialLoad = false) => {
+  async function fetchRecentCampaigns(isInitialLoad = false): Promise<void> {
     if (isInitialLoad) {
       setIsLoadingRecent(true);
     }
@@ -115,6 +107,7 @@ export default function DashboardPage() {
 
   // Load data on mount
   useEffect(() => {
+    fetchStats(true);
     fetchActiveCampaigns(true);
     fetchRecentCampaigns(true);
   }, []);
@@ -131,23 +124,116 @@ export default function DashboardPage() {
     return () => clearInterval(pollInterval);
   }, [activeCampaigns.length, isInitialLoadActive]);
 
-  // Refresh data when campaign wizard closes
-  const handleCampaignCreated = () => {
+  // Polling for recent campaigns (every 10 seconds)
+  useEffect(() => {
+    // Only poll if there are recent campaigns and initial load is done
+    if (recentCampaigns.length === 0 || isInitialLoadRecent) return;
+
+    const pollInterval = setInterval(() => {
+      fetchRecentCampaigns(false); // false = not initial load, don't show spinner
+    }, 10000); // 10 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [recentCampaigns.length, isInitialLoadRecent]);
+
+  // Polling for dashboard stats (every 30 seconds)
+  useEffect(() => {
+    // Only poll if stats are loaded and initial load is done
+    if (!stats || isInitialLoadStats) return;
+
+    const pollInterval = setInterval(() => {
+      fetchStats(false); // false = not initial load, don't show spinner
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [stats, isInitialLoadStats]);
+
+  function handleCampaignCreated(): void {
+    fetchStats(false); // Don't show loading spinner on refresh
     fetchActiveCampaigns(false); // Don't show loading spinner on refresh
     fetchRecentCampaigns(false); // Don't show loading spinner on refresh
   };
 
-  // Calculate progress percentage
-  const calculateProgress = (campaign: Campaign) => {
+  function formatNumber(num: number): string {
+    return num.toLocaleString("pt-BR");
+  }
+
+  function getComparisonSubtitle(comparison: any): string {
+    if (!comparison) {
+      return "Total enviadas";
+    }
+
+    let arrow: string;
+    if (comparison.changePercent > 0) {
+      arrow = "↑";
+    } else if (comparison.changePercent < 0) {
+      arrow = "↓";
+    } else {
+      arrow = "→";
+    }
+
+    return `${arrow} ${Math.abs(comparison.changePercent)}% vs ontem`;
+  }
+
+  function getDeliveryTrend(rate: number): "up" | "neutral" | "down" {
+    if (rate >= 90) return "up";
+    if (rate >= 70) return "neutral";
+    return "down";
+  }
+
+  function getReadTrend(rate: number): "up" | "neutral" | "down" {
+    if (rate >= 50) return "up";
+    if (rate >= 30) return "neutral";
+    return "down";
+  }
+
+  function getFailureTrend(rate: number): "up" | "neutral" | "down" {
+    if (rate <= 5) return "up";
+    if (rate <= 10) return "neutral";
+    return "down";
+  }
+
+  // Prepare stats cards data
+  const statsCards = stats ? [
+    {
+      icon: <MailIcon size={20} />,
+      title: stats.sent.label,
+      value: formatNumber(stats.sent.total),
+      subtitle: getComparisonSubtitle(stats.comparison),
+      trend: stats.comparison?.trend || "neutral",
+    },
+    {
+      icon: <CheckIcon size={20} />,
+      title: stats.delivered.label,
+      value: formatNumber(stats.delivered.total),
+      subtitle: `${stats.delivered.rate}% taxa de entrega`,
+      trend: getDeliveryTrend(stats.delivered.rate),
+    },
+    {
+      icon: <CheckListIcon size={20} />,
+      title: stats.read.label,
+      value: formatNumber(stats.read.total),
+      subtitle: `${stats.read.rate}% taxa de leitura`,
+      trend: getReadTrend(stats.read.rate),
+    },
+    {
+      icon: <CrossIcon size={20} />,
+      title: stats.failed.label,
+      value: formatNumber(stats.failed.total),
+      subtitle: `${stats.failed.rate}% taxa de falha`,
+      trend: getFailureTrend(stats.failed.rate),
+    },
+  ] : [];
+
+  function calculateProgress(campaign: Campaign): number {
     if (campaign.totalContacts === 0) return 0;
     return Math.round((campaign.sentCount / campaign.totalContacts) * 100);
-  };
+  }
 
-  // Format date
-  const formatDate = (dateString: string): string => {
+  function formatDate(dateString: string): string {
     const date = new Date(dateString);
     return date.toLocaleDateString("pt-BR", { month: "short", day: "numeric" });
-  };
+  }
 
   // Get trend color class
   function getTrendColorClass(trend: string): string {
@@ -161,38 +247,53 @@ export default function DashboardPage() {
     }
   }
 
-  // Get status badge config (using single source of truth)
-  const getStatusBadge = (status: string) => {
+  function getStatusBadge(status: string) {
     return CAMPAIGN_STATUS_CONFIG[status as CampaignStatusType] || {
       color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
       label: status,
-      variant: "outline" as const
+      variant: "outline" as const,
+      icon: FileText
     };
-  };
+  }
 
   return (
     <div className="space-y-8">
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => (
-          <Card key={index}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-300 flex items-center gap-2">
-                {stat.icon} {stat.title}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-gray-900 dark:text-white">
-                {stat.value}
-              </div>
-              <p
-                className={`text-xs mt-1 ${getTrendColorClass(stat.trend)}`}
-              >
-                {stat.subtitle}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
+        {isLoadingStats ? (
+          // Loading skeleton for stats
+          Array.from({ length: 4 }).map((_, index) => (
+            <Card key={index}>
+              <CardHeader className="pb-2">
+                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-24" />
+              </CardHeader>
+              <CardContent>
+                <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-16 mb-2" />
+                <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-32" />
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          statsCards.map((stat, index) => (
+            <Card key={index}>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-300 flex items-center gap-2">
+                  {stat.icon} {stat.title}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-gray-900 dark:text-white">
+                  {stat.value}
+                </div>
+                <p
+                  className={`text-xs mt-1 ${getTrendColorClass(stat.trend)}`}
+                >
+                  {stat.subtitle}
+                </p>
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
 
       {/* Quick Actions */}
@@ -251,6 +352,7 @@ export default function DashboardPage() {
                 {activeCampaigns.map((campaign) => {
                   const progress = calculateProgress(campaign);
                   const statusBadge = getStatusBadge(campaign.status);
+                  const StatusIcon = statusBadge.icon;
                   return (
                     <TableRow key={campaign.id}>
                       <TableCell className="font-medium dark:text-gray-200">
@@ -258,7 +360,10 @@ export default function DashboardPage() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={statusBadge.color}>
-                          {statusBadge.label}
+                          <span className="flex items-center gap-1.5">
+                            <StatusIcon className={`w-3.5 h-3.5 ${campaign.status === 'RUNNING' ? 'animate-spin' : ''}`} />
+                            {statusBadge.label}
+                          </span>
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -362,6 +467,7 @@ export default function DashboardPage() {
               <TableBody>
                 {recentCampaigns.map((campaign) => {
                   const statusBadge = getStatusBadge(campaign.status);
+                  const StatusIcon = statusBadge.icon;
                   return (
                     <TableRow
                       key={campaign.id}
@@ -372,7 +478,10 @@ export default function DashboardPage() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={statusBadge.color}>
-                          {statusBadge.label}
+                          <span className="flex items-center gap-1.5">
+                            <StatusIcon className={`w-3.5 h-3.5 ${campaign.status === 'RUNNING' ? 'animate-spin' : ''}`} />
+                            {statusBadge.label}
+                          </span>
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">{campaign.sentCount}</TableCell>
@@ -387,7 +496,15 @@ export default function DashboardPage() {
                         {formatDate(campaign.createdAt)}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" title="Ver relatório">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          title="Ver relatório"
+                          onClick={() => {
+                            setSelectedCampaignForReport(campaign.id);
+                            setCampaignReportOpen(true);
+                          }}
+                        >
                           <BarChart className="w-4 h-4" />
                         </Button>
                       </TableCell>
@@ -414,6 +531,11 @@ export default function DashboardPage() {
         open={campaignDetailsOpen}
         onOpenChange={setCampaignDetailsOpen}
         campaign={selectedCampaign}
+      />
+      <CampaignReportModal
+        open={campaignReportOpen}
+        onOpenChange={setCampaignReportOpen}
+        campaignId={selectedCampaignForReport}
       />
     </div>
   );

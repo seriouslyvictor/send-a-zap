@@ -72,7 +72,7 @@ export default function CampaignsListPage(): React.ReactElement {
     totalPages: 0,
   });
 
-  const fetchCampaigns = useCallback(async () => {
+  const fetchCampaigns = useCallback(async function fetchCampaigns(): Promise<void> {
     try {
       setLoading(true);
       setError(null);
@@ -275,6 +275,7 @@ export default function CampaignsListPage(): React.ReactElement {
               <TableBody>
                 {campaigns.map((campaign) => {
                   const statusConfig = CAMPAIGN_STATUS_CONFIG[campaign.status];
+                  const StatusIcon = statusConfig.icon;
                   return (
                     <TableRow
                       key={campaign.id}
@@ -285,7 +286,10 @@ export default function CampaignsListPage(): React.ReactElement {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={statusConfig.color}>
-                          {statusConfig.label}
+                          <span className="flex items-center gap-1.5">
+                            <StatusIcon className={`w-3.5 h-3.5 ${campaign.status === 'RUNNING' ? 'animate-spin' : ''}`} />
+                            {statusConfig.label}
+                          </span>
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
