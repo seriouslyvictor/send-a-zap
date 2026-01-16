@@ -30,11 +30,10 @@ export function WhatsAppIcon({ size = 32, trigger = 'loop' }: WhatsAppIconProps)
         ref={playerRef}
         icon={ICON}
         size={size}
-        loop={trigger === 'loop'}
         colorize={theme === 'dark' ? '#ffffff' : undefined}
         onComplete={() => {
-          if (trigger !== 'loop') {
-            playerRef.current?.goToFirstFrame();
+          if (trigger === 'loop' || trigger === 'loop-on-hover') {
+            playerRef.current?.playFromBeginning();
           }
         }}
       />

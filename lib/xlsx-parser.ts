@@ -200,10 +200,10 @@ export function parseXLSXFile(
  * @param limit - Number of rows to preview (default 5)
  * @returns Preview data array
  */
-export function getPreviewData(
-  data: Record<string, string>[],
+export function getPreviewData<T extends Record<string, string>>(
+  data: T[],
   limit: number = 5
-): Record<string, string>[] {
+): T[] {
   return data.slice(0, limit);
 }
 

@@ -183,5 +183,19 @@ export class EvolutionAPI {
   }
 }
 
-// Default instance with environment variables
-export const evolutionAPI = new EvolutionAPI();
+// Lazy-loaded singleton instance (avoids build-time initialization)
+let _evolutionAPI: EvolutionAPI | null = null;
+
+export function getEvolutionAPI(): EvolutionAPI {
+  if (!_evolutionAPI) {
+    _evolutionAPI = new EvolutionAPI();
+  }
+  return _evolutionAPI;
+}
+
+// For backwards compatibility - but prefer getEvolutionAPI() for lazy loading
+export const evolutionAPI = {
+  get instance() {
+    return getEvolutionAPI();
+  },
+};

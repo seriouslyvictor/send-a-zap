@@ -10,7 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrisma } from "@/lib/prisma";
 import { MessageStatus, CampaignStatus } from "@prisma/client";
 
 /**
@@ -174,7 +174,7 @@ async function handleMessageUpsert(payload: EvolutionWebhookPayload) {
   }
 
   // Find the message by Evolution message ID
-  const message = await prisma.message.findFirst({
+  const message = await getPrisma().message.findFirst({
     where: { messageId },
     include: { campaign: true },
   });
@@ -189,7 +189,7 @@ async function handleMessageUpsert(payload: EvolutionWebhookPayload) {
   }
 
   // Update message status to SENT
-  await prisma.message.update({
+  await getPrisma().message.update({
     where: { id: message.id },
     data: {
       status: MessageStatus.SENT,
@@ -198,7 +198,7 @@ async function handleMessageUpsert(payload: EvolutionWebhookPayload) {
   });
 
   // Update campaign sent count
-  await prisma.campaign.update({
+  await getPrisma().campaign.update({
     where: { id: message.campaignId },
     data: {
       sentCount: { increment: 1 },
@@ -232,7 +232,7 @@ async function handleMessageUpdate(payload: EvolutionWebhookPayload) {
   }
 
   // Find the message
-  const message = await prisma.message.findFirst({
+  const message = await getPrisma().message.findFirst({
     where: { messageId },
     include: { campaign: true },
   });
@@ -313,14 +313,14 @@ async function handleMessageUpdate(payload: EvolutionWebhookPayload) {
   }
 
   // Update message
-  await prisma.message.update({
+  await getPrisma().message.update({
     where: { id: message.id },
     data: updateData,
   });
 
   // Update campaign counters
   if (Object.keys(campaignUpdate).length > 0) {
-    await prisma.campaign.update({
+    await getPrisma().campaign.update({
       where: { id: message.campaignId },
       data: campaignUpdate,
     });
@@ -356,7 +356,7 @@ async function handleSendMessage(payload: EvolutionWebhookPayload) {
   }
 
   // Find and update message
-  const message = await prisma.message.findFirst({
+  const message = await getPrisma().message.findFirst({
     where: { messageId },
   });
 
@@ -370,7 +370,7 @@ async function handleSendMessage(payload: EvolutionWebhookPayload) {
 
   // Update to SENT if not already
   if (message.status === MessageStatus.QUEUED || message.status === MessageStatus.PENDING) {
-    await prisma.message.update({
+    await getPrisma().message.update({
       where: { id: message.id },
       data: {
         status: MessageStatus.SENT,
@@ -378,7 +378,7 @@ async function handleSendMessage(payload: EvolutionWebhookPayload) {
       },
     });
 
-    await prisma.campaign.update({
+    await getPrisma().campaign.update({
       where: { id: message.campaignId },
       data: {
         sentCount: { increment: 1 },
@@ -399,7 +399,7 @@ async function handleSendMessage(payload: EvolutionWebhookPayload) {
  * Check if a campaign is complete (all messages processed)
  */
 async function checkCampaignCompletion(campaignId: string) {
-  const campaign = await prisma.campaign.findUnique({
+  const campaign = await getPrisma().campaign.findUnique({
     where: { id: campaignId },
     include: {
       _count: {
@@ -413,7 +413,7 @@ async function checkCampaignCompletion(campaignId: string) {
   }
 
   // Count remaining pending/queued messages
-  const pendingCount = await prisma.message.count({
+  const pendingCount = await getPrisma().message.count({
     where: {
       campaignId,
       status: { in: [MessageStatus.PENDING, MessageStatus.QUEUED] },
@@ -422,7 +422,7 @@ async function checkCampaignCompletion(campaignId: string) {
 
   // If no more pending messages, mark campaign as completed
   if (pendingCount === 0) {
-    await prisma.campaign.update({
+    await getPrisma().campaign.update({
       where: { id: campaignId },
       data: {
         status: CampaignStatus.COMPLETED,

@@ -1,33 +1,28 @@
 # ===================================================================
-# WhatsApp Automation - Unified Docker Compose Stack
+# WhatsApp Automation - Production Docker Compose Stack (Swarm Mode)
 # ===================================================================
-# Professional structure with clean deployment folder
+# Production setup with Traefik reverse proxy integration
+# Designed for deployment via Portainer Swarm on VPS
 #
-# Usage:
-#   docker-compose -f deployment/docker-compose.yml up -d
-#   OR use npm scripts: npm run docker:up
+# Subdomains (via Traefik):
+# - app.supernovasw.cloud → Next.js Frontend (Port 3000)
+# - n8n.supernovasw.cloud → n8n Workflow Engine (Port 5678)
+# - api.supernovasw.cloud → Evolution API (Port 8080)
 #
-# Services:
-# - Next.js Frontend (Port 3000)
-# - n8n Workflow Engine (Port 5678)
-# - Evolution API (Port 8080)
-# - PostgreSQL Database (Port 5432)
-# - Redis Cache (Port 6379)
-# - pgAdmin Web UI (Port 4000)
+# Internal Only (no external access):
+# - PostgreSQL (Port 5432)
+# - Redis (Port 6379)
+# - pgAdmin (Port 4000)
 # ===================================================================
+
+version: "3.8"
 
 services:
   # ===================================================================
-  # PostgreSQL - Shared Database
+  # PostgreSQL - Shared Database (Internal Only)
   # ===================================================================
   postgres:
-    container_name: whatsapp_postgres
     image: postgres:16
-    restart: always
-    ports:
-      - "5432:5432"
-    env_file:
-      - ../.env
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -36,69 +31,75 @@ services:
     command: ["postgres", "-c", "max_connections=1000"]
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    deploy:
+      restart_policy:
+        condition: any
+      replicas: 1
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
     networks:
-      - evolution-net
+      - internal
 
   # ===================================================================
-  # pgAdmin - PostgreSQL Web Interface
+  # pgAdmin - PostgreSQL Web Interface (Internal Only)
   # ===================================================================
   pgadmin:
-    container_name: whatsapp_pgadmin
     image: dpage/pgadmin4:latest
-    restart: always
-    ports:
-      - "4000:80"
-    env_file:
-      - ../.env
     environment:
       - PGADMIN_DEFAULT_EMAIL=${PGADMIN_EMAIL:-admin@admin.com}
       - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD}
     volumes:
       - pgadmin_data:/var/lib/pgadmin
-    depends_on:
-      postgres:
-        condition: service_healthy
+    deploy:
+      restart_policy:
+        condition: any
+      replicas: 1
+      labels:
+        # Traefik HTTPS router
+        - "traefik.enable=true"
+        - "traefik.http.routers.pgadmin.rule=Host(`pgadmin.supernovasw.cloud`)"
+        - "traefik.http.routers.pgadmin.entrypoints=websecure"
+        - "traefik.http.routers.pgadmin.tls.certresolver=letsencrypt"
+        - "traefik.http.services.pgadmin.loadbalancer.server.port=80"
+        - "traefik.docker.network=Supernet"
+        # HTTP to HTTPS redirect
+        - "traefik.http.routers.pgadmin-http.rule=Host(`pgadmin.supernovasw.cloud`)"
+        - "traefik.http.routers.pgadmin-http.entrypoints=web"
+        - "traefik.http.routers.pgadmin-http.middlewares=redirect-to-https"
     networks:
-      - evolution-net
+      - internal
+      - Supernet
 
   # ===================================================================
-  # Redis - Cache & Message Queue
+  # Redis - Cache & Message Queue (Internal Only)
   # ===================================================================
   redis:
-    container_name: whatsapp_redis
     image: redis:latest
-    restart: always
-    ports:
-      - "6379:6379"
     command: redis-server --port 6379 --appendonly yes
     volumes:
       - redis_data:/data
+    deploy:
+      restart_policy:
+        condition: any
+      replicas: 1
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 3
     networks:
-      - evolution-net
+      - internal
 
   # ===================================================================
   # n8n - Workflow Automation Engine
   # ===================================================================
+  # Accessible via: https://n8n.supernovasw.cloud
+  # ===================================================================
   n8n:
-    container_name: whatsapp_n8n
     image: docker.n8n.io/n8nio/n8n:latest
-    restart: always
-    ports:
-      - "5678:5678"
-    env_file:
-      - ../.env
     environment:
       # Database configuration
       - DB_TYPE=postgresdb
@@ -107,54 +108,64 @@ services:
       - DB_POSTGRESDB_DATABASE=n8n
       - DB_POSTGRESDB_USER=${POSTGRES_USER:-postgres}
       - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
-
       # n8n configuration
       - N8N_HOST=0.0.0.0
       - N8N_PORT=5678
-      - N8N_PROTOCOL=http
-      - WEBHOOK_URL=${N8N_WEBHOOK_URL:-http://localhost:5678/}
+      - N8N_PROTOCOL=https
+      - WEBHOOK_URL=${N8N_WEBHOOK_URL:-https://n8n.supernovasw.cloud/}
       - GENERIC_TIMEZONE=${TIMEZONE:-America/Sao_Paulo}
-
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
       # Authentication
       - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE:-false}
       - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
       - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
-
       # Execution settings
       - EXECUTIONS_PROCESS=main
       - EXECUTIONS_MODE=regular
+      # Evolution API (for n8n to call Evolution)
+      - EVOLUTION_API_URL=http://evolution-api:8080
+      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
     volumes:
       - n8n_data:/home/node/.n8n
-    depends_on:
-      postgres:
-        condition: service_healthy
+    deploy:
+      restart_policy:
+        condition: any
+      replicas: 1
+      labels:
+        # Traefik HTTPS router
+        - "traefik.enable=true"
+        - "traefik.http.routers.n8n.rule=Host(`n8n.supernovasw.cloud`)"
+        - "traefik.http.routers.n8n.entrypoints=websecure"
+        - "traefik.http.routers.n8n.tls.certresolver=letsencrypt"
+        - "traefik.http.services.n8n.loadbalancer.server.port=5678"
+        - "traefik.docker.network=Supernet"
+        # HTTP to HTTPS redirect
+        - "traefik.http.routers.n8n-http.rule=Host(`n8n.supernovasw.cloud`)"
+        - "traefik.http.routers.n8n-http.entrypoints=web"
+        - "traefik.http.routers.n8n-http.middlewares=redirect-to-https"
+        - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:5678/healthz"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
     networks:
-      - evolution-net
+      - internal
+      - Supernet
 
   # ===================================================================
   # Evolution API - WhatsApp Integration
   # ===================================================================
+  # Accessible via: https://api.supernovasw.cloud
+  # ===================================================================
   evolution-api:
-    container_name: whatsapp_evolution
     image: evoapicloud/evolution-api:homolog
-    restart: always
-    ports:
-      - "8080:8080"
-    env_file:
-      - ../.env
     environment:
       # Server Configuration
       - SERVER_NAME=${EVOLUTION_SERVER_NAME}
       - SERVER_TYPE=${EVOLUTION_SERVER_TYPE}
       - SERVER_PORT=${EVOLUTION_SERVER_PORT}
       - SERVER_URL=${EVOLUTION_SERVER_URL}
-
       # Database Configuration
       - DATABASE_PROVIDER=${EVOLUTION_DATABASE_PROVIDER}
       - DATABASE_CONNECTION_URI=${EVOLUTION_DATABASE_CONNECTION_URI}
@@ -169,7 +180,6 @@ services:
       - DATABASE_SAVE_IS_ON_WHATSAPP=${EVOLUTION_DATABASE_SAVE_IS_ON_WHATSAPP}
       - DATABASE_SAVE_IS_ON_WHATSAPP_DAYS=${EVOLUTION_DATABASE_SAVE_IS_ON_WHATSAPP_DAYS}
       - DATABASE_DELETE_MESSAGE=${EVOLUTION_DATABASE_DELETE_MESSAGE}
-
       # Cache Configuration
       - CACHE_REDIS_ENABLED=${EVOLUTION_CACHE_REDIS_ENABLED}
       - CACHE_REDIS_URI=${EVOLUTION_CACHE_REDIS_URI}
@@ -177,41 +187,32 @@ services:
       - CACHE_REDIS_PREFIX_KEY=${EVOLUTION_CACHE_REDIS_PREFIX_KEY}
       - CACHE_REDIS_SAVE_INSTANCES=${EVOLUTION_CACHE_REDIS_SAVE_INSTANCES}
       - CACHE_LOCAL_ENABLED=${EVOLUTION_CACHE_LOCAL_ENABLED}
-
       # Authentication
       - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY}
       - AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES=${EVOLUTION_AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES}
-
       # Logging
       - LOG_LEVEL=${EVOLUTION_LOG_LEVEL}
       - LOG_COLOR=${EVOLUTION_LOG_COLOR}
       - LOG_BAILEYS=${EVOLUTION_LOG_BAILEYS}
-
       # Session Configuration
       - CONFIG_SESSION_PHONE_CLIENT=${EVOLUTION_CONFIG_SESSION_PHONE_CLIENT}
       - CONFIG_SESSION_PHONE_NAME=${EVOLUTION_CONFIG_SESSION_PHONE_NAME}
       - CONFIG_SESSION_PHONE_VERSION=${EVOLUTION_CONFIG_SESSION_PHONE_VERSION}
-
       # QR Code Configuration
       - QRCODE_LIMIT=${EVOLUTION_QRCODE_LIMIT}
       - QRCODE_COLOR=${EVOLUTION_QRCODE_COLOR}
-
       # CORS Settings
       - CORS_ORIGIN=${EVOLUTION_CORS_ORIGIN}
       - CORS_METHODS=${EVOLUTION_CORS_METHODS}
       - CORS_CREDENTIALS=${EVOLUTION_CORS_CREDENTIALS}
-
       # Instance Settings
       - DEL_INSTANCE=${EVOLUTION_DEL_INSTANCE}
       - EVENT_EMITTER_MAX_LISTENERS=${EVOLUTION_EVENT_EMITTER_MAX_LISTENERS}
-
       # Telemetry
       - TELEMETRY_ENABLED=${EVOLUTION_TELEMETRY_ENABLED}
       - TELEMETRY_URL=${EVOLUTION_TELEMETRY_URL}
-
       # Language
       - LANGUAGE=${EVOLUTION_LANGUAGE}
-
       # Webhook Configuration
       - WEBHOOK_GLOBAL_ENABLED=${EVOLUTION_WEBHOOK_GLOBAL_ENABLED}
       - WEBHOOK_GLOBAL_URL=${EVOLUTION_WEBHOOK_GLOBAL_URL}
@@ -226,13 +227,11 @@ services:
       - WEBHOOK_RETRY_MAX_ATTEMPTS=${EVOLUTION_WEBHOOK_RETRY_MAX_ATTEMPTS}
       - WEBHOOK_RETRY_INITIAL_DELAY_SECONDS=${EVOLUTION_WEBHOOK_RETRY_INITIAL_DELAY_SECONDS}
       - WEBHOOK_RETRY_USE_EXPONENTIAL_BACKOFF=${EVOLUTION_WEBHOOK_RETRY_USE_EXPONENTIAL_BACKOFF}
-
       # WhatsApp Business API
       - WA_BUSINESS_TOKEN_WEBHOOK=${EVOLUTION_WA_BUSINESS_TOKEN_WEBHOOK}
       - WA_BUSINESS_URL=${EVOLUTION_WA_BUSINESS_URL}
       - WA_BUSINESS_VERSION=${EVOLUTION_WA_BUSINESS_VERSION}
       - WA_BUSINESS_LANGUAGE=${EVOLUTION_WA_BUSINESS_LANGUAGE}
-
       # Integrations
       - TYPEBOT_ENABLED=${EVOLUTION_TYPEBOT_ENABLED}
       - CHATWOOT_ENABLED=${EVOLUTION_CHATWOOT_ENABLED}
@@ -240,80 +239,93 @@ services:
       - DIFY_ENABLED=${EVOLUTION_DIFY_ENABLED}
       - N8N_ENABLED=${EVOLUTION_N8N_ENABLED}
       - EVOAI_ENABLED=${EVOLUTION_EVOAI_ENABLED}
-
       # Message Queues
       - RABBITMQ_ENABLED=${EVOLUTION_RABBITMQ_ENABLED}
       - SQS_ENABLED=${EVOLUTION_SQS_ENABLED}
       - KAFKA_ENABLED=${EVOLUTION_KAFKA_ENABLED}
-
       # Websocket
       - WEBSOCKET_ENABLED=${EVOLUTION_WEBSOCKET_ENABLED}
       - WEBSOCKET_GLOBAL_EVENTS=${EVOLUTION_WEBSOCKET_GLOBAL_EVENTS}
-
       # S3 Storage
       - S3_ENABLED=${EVOLUTION_S3_ENABLED}
-
       # Prometheus Metrics
       - PROMETHEUS_METRICS=${EVOLUTION_PROMETHEUS_METRICS}
     volumes:
       - evolution_instances:/evolution/instances
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+    deploy:
+      restart_policy:
+        condition: any
+      replicas: 1
+      labels:
+        # Traefik HTTPS router
+        - "traefik.enable=true"
+        - "traefik.http.routers.evolution.rule=Host(`api.supernovasw.cloud`)"
+        - "traefik.http.routers.evolution.entrypoints=websecure"
+        - "traefik.http.routers.evolution.tls.certresolver=letsencrypt"
+        - "traefik.http.services.evolution.loadbalancer.server.port=8080"
+        - "traefik.docker.network=Supernet"
+        # HTTP to HTTPS redirect
+        - "traefik.http.routers.evolution-http.rule=Host(`api.supernovasw.cloud`)"
+        - "traefik.http.routers.evolution-http.entrypoints=web"
+        - "traefik.http.routers.evolution-http.middlewares=redirect-to-https"
     networks:
-      - evolution-net
+      - internal
+      - Supernet
 
   # ===================================================================
   # Next.js - Frontend Application
   # ===================================================================
+  # Accessible via: https://app.supernovasw.cloud
+  # ===================================================================
   nextjs:
-    container_name: whatsapp_nextjs
-    build:
-      context: ..
-      dockerfile: Dockerfile
-    restart: always
-    ports:
-      - "3000:3000"
-    env_file:
-      - ../.env
+    image: seriouslyvictor/whatsapp-nextjs:latest
     environment:
       - NODE_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/whatsapp_automation?schema=public
       - N8N_API_URL=http://n8n:5678
       - N8N_API_KEY=${N8N_API_KEY}
       - N8N_WEBHOOK_URL=http://n8n:5678
       - EVOLUTION_API_URL=http://evolution-api:8080
       - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
-    depends_on:
-      n8n:
-        condition: service_healthy
-      evolution-api:
-        condition: service_started
-      postgres:
-        condition: service_healthy
+    deploy:
+      restart_policy:
+        condition: any
+      replicas: 1
+      labels:
+        # Traefik HTTPS router
+        - "traefik.enable=true"
+        - "traefik.http.routers.nextjs.rule=Host(`app.supernovasw.cloud`)"
+        - "traefik.http.routers.nextjs.entrypoints=websecure"
+        - "traefik.http.routers.nextjs.tls.certresolver=letsencrypt"
+        - "traefik.http.services.nextjs.loadbalancer.server.port=3000"
+        - "traefik.docker.network=Supernet"
+        # HTTP to HTTPS redirect
+        - "traefik.http.routers.nextjs-http.rule=Host(`app.supernovasw.cloud`)"
+        - "traefik.http.routers.nextjs-http.entrypoints=web"
+        - "traefik.http.routers.nextjs-http.middlewares=redirect-to-https"
     networks:
-      - evolution-net
+      - internal
+      - Supernet
 
 # ===================================================================
 # Volumes - Persistent Data Storage
 # ===================================================================
 volumes:
   postgres_data:
-    name: whatsapp_postgres_data
   pgadmin_data:
-    name: whatsapp_pgadmin_data
   redis_data:
-    name: whatsapp_redis_data
   n8n_data:
-    name: whatsapp_n8n_data
   evolution_instances:
-    name: whatsapp_evolution_instances
 
 # ===================================================================
-# Networks - Service Communication
+# Networks
+# ===================================================================
+# internal: Overlay network for container-to-container communication
+# Supernet: External Traefik network (must exist and be attachable)
 # ===================================================================
 networks:
-  evolution-net:
-    name: evolution-net
-    driver: bridge
+  internal:
+    driver: overlay
+    attachable: true
+  Supernet:
+    external: true

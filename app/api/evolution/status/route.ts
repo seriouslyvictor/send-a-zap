@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { evolutionAPI } from "@/lib/evolution-api";
+import { getEvolutionAPI } from "@/lib/evolution-api";
 
 // Fixed instance name for single-session use
 const INSTANCE_NAME = "whatsapp-main";
@@ -14,7 +14,7 @@ export async function GET() {
   try {
     // Fetch instance details
     console.log("[STATUS] Fetching instances from Evolution API...");
-    const instances = await evolutionAPI.fetchInstances(INSTANCE_NAME);
+    const instances = await getEvolutionAPI().fetchInstances(INSTANCE_NAME);
     console.log("[STATUS] Instances response:", JSON.stringify(instances, null, 2));
 
     // Handle empty or invalid response
@@ -43,7 +43,7 @@ export async function GET() {
     // Try to get detailed connection status
     let connectionState;
     try {
-      connectionState = await evolutionAPI.getConnectionStatus(INSTANCE_NAME);
+      connectionState = await getEvolutionAPI().getConnectionStatus(INSTANCE_NAME);
     } catch (error) {
       console.log("Could not fetch connection state:", error);
     }

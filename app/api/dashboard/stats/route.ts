@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrisma } from "@/lib/prisma";
 
 /**
  * GET /api/dashboard/stats
@@ -54,7 +54,7 @@ async function getYesterdayComparison(period: Period, totalSent: number): Promis
   const startOfYesterday = new Date(yesterday.setHours(0, 0, 0, 0));
   const endOfYesterday = new Date(yesterday.setHours(23, 59, 59, 999));
 
-  const yesterdayCounts = await prisma.message.groupBy({
+  const yesterdayCounts = await getPrisma().message.groupBy({
     by: ["status"],
     where: {
       sentAt: {
@@ -110,7 +110,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const dateFilter = getDateFilter(period);
 
     // Get message counts by status for the period
-    const messageCounts = await prisma.message.groupBy({
+    const messageCounts = await getPrisma().message.groupBy({
       by: ["status"],
       where: dateFilter ? { sentAt: dateFilter } : undefined,
       _count: {

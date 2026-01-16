@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrisma } from "@/lib/prisma";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest, { params }: RouteParams): Promis
 
     // Fetch messages
     const [messages, totalCount] = await Promise.all([
-      prisma.message.findMany({
+      getPrisma().message.findMany({
         where,
         select: {
           id: true,
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest, { params }: RouteParams): Promis
         take: validLimit,
         skip,
       }),
-      prisma.message.count({ where }),
+      getPrisma().message.count({ where }),
     ]);
 
     return NextResponse.json({

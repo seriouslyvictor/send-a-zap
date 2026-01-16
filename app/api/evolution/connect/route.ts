@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { evolutionAPI } from "@/lib/evolution-api";
+import { getEvolutionAPI } from "@/lib/evolution-api";
 import type { EvolutionInstance } from "@/types/evolution-api";
 import QRCode from "qrcode";
 
@@ -41,7 +41,7 @@ export async function POST() {
     // Check if instance already exists
     let instances: EvolutionInstance[] = [];
     try {
-      instances = await evolutionAPI.fetchInstances(INSTANCE_NAME);
+      instances = await getEvolutionAPI().fetchInstances(INSTANCE_NAME);
     } catch (error) {
       console.error("Error fetching instances:", error);
       instances = [];
@@ -67,11 +67,11 @@ export async function POST() {
     if (existingInstance) {
       // Instance exists but not connected, get QR code
       console.log("Instance exists but disconnected, fetching QR code...");
-      qrCodeData = await evolutionAPI.getQRCode(INSTANCE_NAME);
+      qrCodeData = await getEvolutionAPI().getQRCode(INSTANCE_NAME);
     } else {
       // Create new instance
       console.log("Creating new instance...");
-      const createResponse = await evolutionAPI.createInstance({
+      const createResponse = await getEvolutionAPI().createInstance({
         instanceName: INSTANCE_NAME,
         integration: "WHATSAPP-BAILEYS",
         qrcode: true,
@@ -116,7 +116,7 @@ export async function POST() {
  */
 export async function GET() {
   try {
-    const qrCodeData = await evolutionAPI.getQRCode(INSTANCE_NAME);
+    const qrCodeData = await getEvolutionAPI().getQRCode(INSTANCE_NAME);
 
     let base64Image: string | null = null;
 

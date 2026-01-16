@@ -8,7 +8,8 @@
  * or via adapter/accelerateUrl
  *
  * Usage:
- *   import { prisma } from '@/lib/prisma';
+ *   import { getPrisma } from '@/lib/prisma';
+ *   const prisma = getPrisma();
  *   const campaigns = await prisma.campaign.findMany();
  */
 
@@ -24,39 +25,56 @@ declare global {
   var pgPool: Pool | undefined;
 }
 
-// Create PostgreSQL connection pool
-const connectionString = process.env.DATABASE_URL;
+// Lazy-loaded singleton instance (avoids build-time initialization)
+let _prisma: PrismaClient | null = null;
+let _pool: Pool | null = null;
 
-if (!connectionString) {
-  throw new Error(
-    'DATABASE_URL is not defined. Please set it in your .env file.\n' +
-    'Example: DATABASE_URL="postgresql://user:password@host:port/database"'
-  );
+export function getPrisma(): PrismaClient {
+  if (_prisma) {
+    return _prisma;
+  }
+
+  // Check for DATABASE_URL at runtime, not build time
+  const connectionString = process.env.DATABASE_URL;
+
+  if (!connectionString) {
+    throw new Error(
+      'DATABASE_URL is not defined. Please set it in your .env file.\n' +
+      'Example: DATABASE_URL="postgresql://user:password@host:port/database"'
+    );
+  }
+
+  // Create PostgreSQL connection pool
+  _pool = globalThis.pgPool ?? new Pool({ connectionString });
+
+  if (process.env.NODE_ENV !== 'production') {
+    globalThis.pgPool = _pool;
+  }
+
+  // Create Prisma adapter
+  const adapter = new PrismaPg(_pool);
+
+  // Create Prisma client instance with adapter
+  _prisma = globalThis.prisma ?? new PrismaClient({
+    adapter,
+    log: process.env.NODE_ENV === 'development'
+      ? ['query', 'error', 'warn']
+      : ['error'],
+  });
+
+  // Save to global in development to prevent hot reload issues
+  if (process.env.NODE_ENV !== 'production') {
+    globalThis.prisma = _prisma;
+  }
+
+  return _prisma;
 }
 
-// Reuse pool in development
-const pool = globalThis.pgPool ?? new Pool({ connectionString });
-
-if (process.env.NODE_ENV !== 'production') {
-  globalThis.pgPool = pool;
-}
-
-// Create Prisma adapter
-const adapter = new PrismaPg(pool);
-
-// Create Prisma client instance with adapter
-// In development, reuse the global instance to prevent connection exhaustion
-// In production, create a new instance
-export const prisma = globalThis.prisma ?? new PrismaClient({
-  adapter,
-  log: process.env.NODE_ENV === 'development'
-    ? ['query', 'error', 'warn']
-    : ['error'],
-});
-
-// Save to global in development to prevent hot reload issues
-if (process.env.NODE_ENV !== 'production') {
-  globalThis.prisma = prisma;
-}
+// For backwards compatibility - but prefer getPrisma() for lazy loading
+export const prisma = {
+  get client() {
+    return getPrisma();
+  },
+};
 
 export default prisma;

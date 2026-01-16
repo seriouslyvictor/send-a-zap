@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrisma } from "@/lib/prisma";
 import { CampaignStatus, MessageStatus } from "@prisma/client";
 
 interface RouteParams {
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { id } = await params;
 
     // Validate campaign exists
-    const campaign = await prisma.campaign.findUnique({
+    const campaign = await getPrisma().campaign.findUnique({
       where: { id },
       select: { id: true, name: true, status: true },
     });
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Set pause flag (n8n will detect this and handle cleanup)
-    const updatedCampaign = await prisma.campaign.update({
+    const updatedCampaign = await getPrisma().campaign.update({
       where: { id },
       data: {
         status: CampaignStatus.PAUSED,

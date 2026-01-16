@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { evolutionAPI } from "@/lib/evolution-api";
+import { getEvolutionAPI } from "@/lib/evolution-api";
 
 // Fixed instance name for single-session use
 const INSTANCE_NAME = "whatsapp-main";
@@ -14,8 +14,8 @@ export async function POST() {
   try {
     // Delete the instance completely (logout is unreliable in Evolution API)
     // The connect flow will recreate the instance when user reconnects
-    console.log("[DISCONNECT] Calling evolutionAPI.deleteInstance...");
-    const result = await evolutionAPI.deleteInstance(INSTANCE_NAME);
+    console.log("[DISCONNECT] Calling getEvolutionAPI().deleteInstance...");
+    const result = await getEvolutionAPI().deleteInstance(INSTANCE_NAME);
     console.log("[DISCONNECT] Delete result:", JSON.stringify(result, null, 2));
 
     return NextResponse.json({
@@ -45,7 +45,7 @@ export async function POST() {
 export async function DELETE() {
   try {
     // Delete the instance completely
-    const result = await evolutionAPI.deleteInstance(INSTANCE_NAME);
+    const result = await getEvolutionAPI().deleteInstance(INSTANCE_NAME);
 
     return NextResponse.json({
       success: true,

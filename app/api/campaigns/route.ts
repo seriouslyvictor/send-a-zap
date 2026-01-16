@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { CampaignStatus, MessageStatus } from "@prisma/client";
 
-import { prisma } from "@/lib/prisma";
+import { getPrisma } from "@/lib/prisma";
 import { validatePhone } from "@/lib/phone-validator";
 import { renderMessage } from "@/lib/message-renderer";
 
@@ -84,14 +84,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     };
 
     const [campaigns, total] = await Promise.all([
-      prisma.campaign.findMany({
+      getPrisma().campaign.findMany({
         where,
         orderBy: { createdAt: "desc" },
         skip,
         take: limit,
         include: { _count: { select: { messages: true } } },
       }),
-      prisma.campaign.count({ where }),
+      getPrisma().campaign.count({ where }),
     ]);
 
     return NextResponse.json({
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Fetch blocklist for filtering
-    const blocklist = await prisma.blocklist.findMany({
+    const blocklist = await getPrisma().blocklist.findMany({
       select: { phone: true },
     });
     const blockedPhones = new Set(blocklist.map((b) => b.phone));
@@ -256,7 +256,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Create campaign with messages in a transaction
-    const campaign = await prisma.$transaction(async (tx) => {
+    const campaign = await getPrisma().$transaction(async (tx) => {
       // Create the campaign
       const newCampaign = await tx.campaign.create({
         data: {

@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrisma } from "@/lib/prisma";
 import { CampaignStatus } from "@prisma/client";
 
 interface RouteParams {
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const skip = (validPage - 1) * validLimit;
 
     // Fetch campaign
-    const campaign = await prisma.campaign.findUnique({
+    const campaign = await getPrisma().campaign.findUnique({
       where: { id },
       include: includeMessages
         ? {
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     // Calculate message stats by status
-    const messageStats = await prisma.message.groupBy({
+    const messageStats = await getPrisma().message.groupBy({
       by: ["status"],
       where: { campaignId: id },
       _count: { status: true },
@@ -130,7 +130,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const { id } = await params;
 
     // Fetch campaign to check status
-    const campaign = await prisma.campaign.findUnique({
+    const campaign = await getPrisma().campaign.findUnique({
       where: { id },
       select: { id: true, status: true, name: true },
     });
@@ -160,7 +160,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     // Delete campaign (messages cascade due to onDelete: Cascade)
-    await prisma.campaign.delete({
+    await getPrisma().campaign.delete({
       where: { id },
     });
 
@@ -190,7 +190,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const body = await request.json();
 
     // Fetch campaign to check status
-    const campaign = await prisma.campaign.findUnique({
+    const campaign = await getPrisma().campaign.findUnique({
       where: { id },
       select: { id: true, status: true },
     });
@@ -241,7 +241,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const updatedCampaign = await prisma.campaign.update({
+    const updatedCampaign = await getPrisma().campaign.update({
       where: { id },
       data: updateData,
     });

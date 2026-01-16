@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrisma } from "@/lib/prisma";
 import { CampaignStatus, MessageStatus } from "@prisma/client";
 
 interface RouteParams {
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { id } = await params;
 
     // Validate campaign exists
-    const campaign = await prisma.campaign.findUnique({
+    const campaign = await getPrisma().campaign.findUnique({
       where: { id },
     });
 
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Check for pending messages (informational only, n8n will handle completion logic)
-    const pendingCount = await prisma.message.count({
+    const pendingCount = await getPrisma().message.count({
       where: {
         campaignId: id,
         status: MessageStatus.PENDING,
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       console.log(`[CAMPAIGN] n8n workflow triggered successfully, status: ${n8nResponse.status}`);
 
       // Read updated campaign state (n8n has already updated it)
-      const updatedCampaign = await prisma.campaign.findUnique({
+      const updatedCampaign = await getPrisma().campaign.findUnique({
         where: { id },
       });
 

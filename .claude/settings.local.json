@@ -30,7 +30,8 @@
       "mcp__n8n-mcp__validate_workflow",
       "Bash(node -e:*)",
       "Skill(n8n-workflow-patterns)",
-      "Skill(n8n-node-configuration)"
+      "Skill(n8n-node-configuration)",
+      "Bash(grep:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

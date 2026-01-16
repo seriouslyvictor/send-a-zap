@@ -9,6 +9,10 @@ WORKDIR /app
 
 # Install dependencies based on package files
 COPY package.json package-lock.json ./
+
+# Copy prisma schema (needed for postinstall prisma generate)
+COPY prisma ./prisma
+
 RUN npm ci && \
     npm cache clean --force
 
