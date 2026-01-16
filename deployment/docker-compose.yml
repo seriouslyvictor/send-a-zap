@@ -57,21 +57,8 @@ services:
       restart_policy:
         condition: any
       replicas: 1
-      labels:
-        # Traefik HTTPS router
-        - "traefik.enable=true"
-        - "traefik.http.routers.pgadmin.rule=Host(`pgadmin.supernovasw.cloud`)"
-        - "traefik.http.routers.pgadmin.entrypoints=websecure"
-        - "traefik.http.routers.pgadmin.tls.certresolver=letsencrypt"
-        - "traefik.http.services.pgadmin.loadbalancer.server.port=80"
-        - "traefik.docker.network=Supernet"
-        # HTTP to HTTPS redirect
-        - "traefik.http.routers.pgadmin-http.rule=Host(`pgadmin.supernovasw.cloud`)"
-        - "traefik.http.routers.pgadmin-http.entrypoints=web"
-        - "traefik.http.routers.pgadmin-http.middlewares=redirect-to-https"
     networks:
       - internal
-      - Supernet
 
   # ===================================================================
   # Redis - Cache & Message Queue (Internal Only)
