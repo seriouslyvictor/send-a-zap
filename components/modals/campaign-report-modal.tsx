@@ -139,9 +139,9 @@ export function CampaignReportModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[calc(100vw-12rem)] sm:max-w-[calc(100vw-4rem)] w-[calc(100vw-12rem)] max-h-[calc(100vh-4rem)] h-[calc(100vh-4rem)] overflow-y-auto">
+      <DialogContent className="max-w-[95vw] sm:max-w-[90vw] lg:max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Relatório da Campanha</DialogTitle>
+          <DialogTitle className="text-base sm:text-lg">Relatório da Campanha</DialogTitle>
         </DialogHeader>
 
         {isLoading ? (
@@ -152,8 +152,8 @@ export function CampaignReportModal({
           <div className="space-y-6">
             {/* Campaign Summary */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">{campaign.name}</h3>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <h3 className="text-base sm:text-lg font-semibold">{campaign.name}</h3>
                 <Badge
                   variant="outline"
                   className={getStatusBadge(campaign.status).color}
@@ -248,14 +248,14 @@ export function CampaignReportModal({
 
             {/* Messages Table */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="text-base font-semibold">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <h4 className="text-sm sm:text-base font-semibold">
                   Mensagens ({messages.length})
                 </h4>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">Mostrar:</span>
+                  <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Mostrar:</span>
                   <Select value={limit} onValueChange={setLimit}>
-                    <SelectTrigger className="w-32">
+                    <SelectTrigger className="w-full sm:w-40">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -269,17 +269,19 @@ export function CampaignReportModal({
                 </div>
               </div>
 
-              <div className="border rounded-lg">
+              <div className="border rounded-lg overflow-hidden">
+                <div className="overflow-x-auto -mx-6 sm:mx-0">
+                <div className="inline-block min-w-full align-middle">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Telefone</TableHead>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Enviada</TableHead>
-                      <TableHead>Entregue</TableHead>
-                      <TableHead>Lida</TableHead>
-                      <TableHead>Erro</TableHead>
+                      <TableHead className="whitespace-nowrap">Telefone</TableHead>
+                      <TableHead className="whitespace-nowrap">Nome</TableHead>
+                      <TableHead className="whitespace-nowrap">Status</TableHead>
+                      <TableHead className="whitespace-nowrap">Enviada</TableHead>
+                      <TableHead className="whitespace-nowrap">Entregue</TableHead>
+                      <TableHead className="whitespace-nowrap">Lida</TableHead>
+                      <TableHead className="whitespace-nowrap">Erro</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -327,11 +329,13 @@ export function CampaignReportModal({
                     )}
                   </TableBody>
                 </Table>
+                </div>
+                </div>
               </div>
             </div>
           </div>
         ) : (
-          <div className="text-center text-gray-500 py-8">
+          <div className="text-center text-gray-500 dark:text-gray-400 py-8">
             Nenhuma campanha selecionada
           </div>
         )}

@@ -90,16 +90,16 @@ export function CampaignDetailsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-200 max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto w-[95vw]">
         <DialogHeader>
-          <DialogTitle>Campaign Details: {campaign.name}</DialogTitle>
+          <DialogTitle className="text-base sm:text-lg pr-8">Campaign Details: {campaign.name}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {/* Status and Timeline */}
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-gray-700">Status:</span>
+              <span className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300">Status:</span>
               <Badge
                 variant="default"
                 className={
@@ -113,23 +113,23 @@ export function CampaignDetailsModal({
                 {campaign.status}
               </Badge>
             </div>
-            <p className="text-sm text-gray-600">
+            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
               Started: {campaign.startedAt}
             </p>
-            <p className="text-sm text-gray-600">
+            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
               Est. completion: {campaign.estimatedCompletion}
             </p>
           </div>
 
           {/* Progress */}
           <div className="space-y-2">
-            <h3 className="text-sm font-semibold text-gray-900">Progress:</h3>
+            <h3 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100">Progress:</h3>
             <div className="space-y-1">
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between text-xs sm:text-sm">
                 <span>
                   {campaign.sent} / {campaign.total}
                 </span>
-                <span className="text-gray-500">{campaign.progress}%</span>
+                <span className="text-gray-500 dark:text-gray-400">{campaign.progress}%</span>
               </div>
               <Progress value={campaign.progress} className="h-2" />
             </div>
@@ -137,24 +137,24 @@ export function CampaignDetailsModal({
 
           {/* Statistics */}
           <div className="space-y-2">
-            <h3 className="text-sm font-semibold text-gray-900">📊 Statistics:</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="text-sm">
+            <h3 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100">📊 Statistics:</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+              <div className="text-xs sm:text-sm dark:text-gray-200">
                 • Sent: <span className="font-semibold">{campaign.sent}</span>
               </div>
-              <div className="text-sm">
+              <div className="text-xs sm:text-sm dark:text-gray-200">
                 • Delivered:{" "}
                 <span className="font-semibold">
                   {campaign.delivered} ({deliveryRate}%)
                 </span>
               </div>
-              <div className="text-sm">
+              <div className="text-xs sm:text-sm dark:text-gray-200">
                 • Read:{" "}
                 <span className="font-semibold">
                   {campaign.read} ({readRate}%)
                 </span>
               </div>
-              <div className="text-sm text-red-600">
+              <div className="text-xs sm:text-sm text-red-600 dark:text-red-400">
                 • Failed:{" "}
                 <span className="font-semibold">
                   {campaign.failed} ({failureRate}%)
@@ -165,8 +165,8 @@ export function CampaignDetailsModal({
 
           {/* Configuration */}
           <div className="space-y-2">
-            <h3 className="text-sm font-semibold text-gray-900">⚙️ Configuration:</h3>
-            <div className="text-sm text-gray-600 space-y-1">
+            <h3 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100">⚙️ Configuration:</h3>
+            <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 space-y-1">
               <p>• Batch size: {campaign.batchSize} messages</p>
               <p>
                 • Delay: {campaign.messageDelay}s per message, {campaign.batchDelay}s per
@@ -181,8 +181,8 @@ export function CampaignDetailsModal({
 
           {/* Message */}
           <div className="space-y-2">
-            <h3 className="text-sm font-semibold text-gray-900">📝 Message:</h3>
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm">
+            <h3 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100">📝 Message:</h3>
+            <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 text-xs sm:text-sm">
               {campaign.message}
             </div>
           </div>
@@ -190,17 +190,19 @@ export function CampaignDetailsModal({
           {/* Failed Messages */}
           {campaign.failedMessages.length > 0 && (
             <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-gray-900">
+              <h3 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100">
                 Failed Messages ({campaign.failedMessages.length}):
               </h3>
-              <div className="border rounded-lg overflow-hidden max-h-50 overflow-y-auto">
+              <div className="border rounded-lg overflow-hidden max-h-[300px] overflow-y-auto">
+                <div className="overflow-x-auto -mx-6 sm:mx-0">
+                <div className="inline-block min-w-full align-middle">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Phone</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Error</TableHead>
-                      <TableHead className="text-right">Action</TableHead>
+                      <TableHead className="whitespace-nowrap">Phone</TableHead>
+                      <TableHead className="whitespace-nowrap">Name</TableHead>
+                      <TableHead className="whitespace-nowrap">Error</TableHead>
+                      <TableHead className="text-right whitespace-nowrap">Action</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -226,29 +228,31 @@ export function CampaignDetailsModal({
                     ))}
                   </TableBody>
                 </Table>
+                </div>
+                </div>
               </div>
             </div>
           )}
 
           {/* Actions */}
-          <div className="flex flex-col gap-3 border-t pt-4">
-            <div className="flex gap-3">
-              <Button variant="outline" onClick={handlePause}>
+          <div className="flex flex-col gap-2 sm:gap-3 border-t pt-4">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+              <Button variant="outline" onClick={handlePause} className="w-full sm:w-auto text-sm">
                 ⏸ Pause Campaign
               </Button>
               <Button
                 variant="outline"
                 onClick={handleCancel}
-                className="text-red-600 hover:text-red-700"
+                className="text-red-600 hover:text-red-700 w-full sm:w-auto text-sm"
               >
                 ❌ Cancel & Delete Messages
               </Button>
             </div>
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={handleExport}>
+            <div className="flex flex-col sm:flex-row justify-between gap-2">
+              <Button variant="outline" onClick={handleExport} className="w-full sm:w-auto text-sm">
                 📊 Export Report
               </Button>
-              <Button onClick={() => onOpenChange(false)}>Close</Button>
+              <Button onClick={() => onOpenChange(false)} className="w-full sm:w-auto">Close</Button>
             </div>
           </div>
         </div>

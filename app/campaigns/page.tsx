@@ -119,18 +119,18 @@ export default function CampaignsListPage(): React.ReactElement {
   const hasActiveFilters = statusFilter !== "ALL" || dateRange !== undefined;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4 md:p-0">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
             Convocacoes
           </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
+          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1">
             Gerencie todas as suas convocacoes de WhatsApp
           </p>
         </div>
-        <Button onClick={fetchCampaigns} variant="outline" size="sm">
+        <Button onClick={fetchCampaigns} variant="outline" size="sm" className="w-full sm:w-auto">
           <RefreshCw className="w-4 h-4 mr-2" />
           Atualizar
         </Button>
@@ -139,12 +139,12 @@ export default function CampaignsListPage(): React.ReactElement {
       {/* Filters */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Filtros</CardTitle>
+          <CardTitle className="text-sm sm:text-base">Filtros</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4">
             {/* Status Filter */}
-            <div className="flex flex-col gap-2 min-w-50">
+            <div className="flex flex-col gap-2 flex-1 min-w-[200px]">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 Status
               </label>
@@ -163,7 +163,7 @@ export default function CampaignsListPage(): React.ReactElement {
             </div>
 
             {/* Date Range Filter */}
-            <div className="flex flex-col gap-2 min-w-70">
+            <div className="flex flex-col gap-2 flex-1 min-w-[200px]">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 Periodo
               </label>
@@ -171,10 +171,10 @@ export default function CampaignsListPage(): React.ReactElement {
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
-                    className="justify-start text-left font-normal"
+                    className="justify-start text-left font-normal w-full"
                   >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formatDateRangeDisplay(dateRange)}
+                    <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+                    <span className="truncate">{formatDateRangeDisplay(dateRange)}</span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -192,11 +192,12 @@ export default function CampaignsListPage(): React.ReactElement {
             </div>
 
             {/* Clear Filters */}
-            <div className="flex items-end">
+            <div className="flex sm:items-end w-full sm:w-auto">
               <Button
                 variant="ghost"
                 onClick={handleClearFilters}
                 disabled={!hasActiveFilters}
+                className="w-full sm:w-auto"
               >
                 Limpar Filtros
               </Button>
@@ -208,22 +209,23 @@ export default function CampaignsListPage(): React.ReactElement {
       {/* Results */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <CardTitle className="text-base sm:text-lg">
               Resultados ({pagination.total} convocac
               {pagination.total === 1 ? "ao" : "oes"})
             </CardTitle>
             {pagination.totalPages > 1 && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setPage(Math.max(1, page - 1))}
                   disabled={page === 1}
+                  className="flex-1 sm:flex-none"
                 >
                   Anterior
                 </Button>
-                <span className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
                   Página {pagination.page} de {pagination.totalPages}
                 </span>
                 <Button
@@ -231,6 +233,7 @@ export default function CampaignsListPage(): React.ReactElement {
                   size="sm"
                   onClick={() => setPage(Math.min(pagination.totalPages, page + 1))}
                   disabled={page === pagination.totalPages}
+                  className="flex-1 sm:flex-none"
                 >
                   Próxima
                 </Button>
@@ -257,19 +260,22 @@ export default function CampaignsListPage(): React.ReactElement {
               </p>
             </div>
           ) : (
+            <div className="overflow-x-auto -mx-6 sm:mx-0">
+            <div className="inline-block min-w-full align-middle">
+            <div className="overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Contatos</TableHead>
-                  <TableHead className="text-right">Progresso</TableHead>
-                  <TableHead className="text-right">Enviados</TableHead>
-                  <TableHead className="text-right">Entregues</TableHead>
-                  <TableHead className="text-right">Lidos</TableHead>
-                  <TableHead className="text-right">Falhas</TableHead>
-                  <TableHead className="text-right">Criado</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                  <TableHead className="whitespace-nowrap">Nome</TableHead>
+                  <TableHead className="whitespace-nowrap">Status</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Contatos</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Progresso</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Enviados</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Entregues</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Lidos</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Falhas</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Criado</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -281,36 +287,36 @@ export default function CampaignsListPage(): React.ReactElement {
                       key={campaign.id}
                       className="hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
-                      <TableCell className="font-medium dark:text-gray-200">
+                      <TableCell className="font-medium dark:text-gray-200 text-sm">
                         {campaign.name}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={statusConfig.color}>
+                        <Badge variant="outline" className={`${statusConfig.color} text-xs`}>
                           <span className="flex items-center gap-1.5">
-                            <StatusIcon className={`w-3.5 h-3.5 ${campaign.status === 'RUNNING' ? 'animate-spin' : ''}`} />
-                            {statusConfig.label}
+                            <StatusIcon className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${campaign.status === 'RUNNING' ? 'animate-spin' : ''}`} />
+                            <span className="hidden sm:inline">{statusConfig.label}</span>
                           </span>
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right text-sm">
                         {campaign.totalContacts}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right text-sm">
                         {calculateProgress(campaign)}%
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right text-sm">
                         {campaign.sentCount}
                       </TableCell>
-                      <TableCell className="text-right text-green-600 dark:text-green-400">
+                      <TableCell className="text-right text-green-600 dark:text-green-400 text-sm">
                         {campaign.deliveredCount}
                       </TableCell>
-                      <TableCell className="text-right text-blue-600 dark:text-blue-400">
+                      <TableCell className="text-right text-blue-600 dark:text-blue-400 text-sm">
                         {campaign.readCount}
                       </TableCell>
-                      <TableCell className="text-right text-red-600 dark:text-red-400">
+                      <TableCell className="text-right text-red-600 dark:text-red-400 text-sm">
                         {campaign.failedCount}
                       </TableCell>
-                      <TableCell className="text-right text-gray-500 dark:text-gray-400">
+                      <TableCell className="text-right text-gray-500 dark:text-gray-400 text-xs sm:text-sm whitespace-nowrap">
                         {formatDateTime(campaign.createdAt)}
                       </TableCell>
                       <TableCell className="text-right">
@@ -324,6 +330,9 @@ export default function CampaignsListPage(): React.ReactElement {
                 })}
               </TableBody>
             </Table>
+            </div>
+            </div>
+            </div>
           )}
         </CardContent>
       </Card>

@@ -183,11 +183,11 @@ export function Step3Configure({
         </div>
 
         {/* Actions */}
-        <div className="flex justify-between">
-          <Button variant="outline" onClick={onBack}>
+        <div className="flex flex-col sm:flex-row justify-between gap-3">
+          <Button variant="outline" onClick={onBack} className="w-full sm:w-auto order-2 sm:order-1">
             ← Voltar
           </Button>
-          <Button onClick={handleSubmit} disabled={!campaignName}>
+          <Button onClick={handleSubmit} disabled={!campaignName} className="w-full sm:w-auto order-1 sm:order-2">
             Próximo: Revisar →
           </Button>
         </div>

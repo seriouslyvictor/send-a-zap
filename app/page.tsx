@@ -13,12 +13,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Upload, Edit, BarChart, Pause, X, Eye, Loader2, Play, FolderOpen, Rocket, FileText } from "lucide-react";
+import { Edit, BarChart, Pause, X, Eye, Loader2, Play, FolderOpen, Rocket, FileText } from "lucide-react";
 import { MailIcon } from "@/components/icons/mail-icon";
 import { CheckIcon } from "@/components/icons/check-icon";
 import { CheckListIcon } from "@/components/icons/check-list-icon";
 import { CrossIcon } from "@/components/icons/cross-icon";
-import { UploadContactsModal } from "@/components/modals/upload-contacts-modal";
 import { CampaignWizard } from "@/components/modals/campaign-wizard";
 import { CampaignDetailsModal } from "@/components/modals/campaign-details-modal";
 import { CampaignReportModal } from "@/components/modals/campaign-report-modal";
@@ -27,7 +26,6 @@ import { Campaign, CAMPAIGN_STATUS_CONFIG, CampaignStatusType } from "@/types/ca
 
 export default function DashboardPage(): React.ReactElement {
   // Modal states
-  const [uploadContactsOpen, setUploadContactsOpen] = useState(false);
   const [campaignWizardOpen, setCampaignWizardOpen] = useState(false);
   const [campaignDetailsOpen, setCampaignDetailsOpen] = useState(false);
   const [campaignReportOpen, setCampaignReportOpen] = useState(false);
@@ -257,9 +255,9 @@ export default function DashboardPage(): React.ReactElement {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-8 p-4 md:p-0">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         {isLoadingStats ? (
           // Loading skeleton for stats
           Array.from({ length: 4 }).map((_, index) => (
@@ -277,12 +275,13 @@ export default function DashboardPage(): React.ReactElement {
           statsCards.map((stat, index) => (
             <Card key={index}>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-300 flex items-center gap-2">
-                  {stat.icon} {stat.title}
+                <CardTitle className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-300 flex items-center gap-2">
+                  <span className="shrink-0">{stat.icon}</span>
+                  <span className="truncate">{stat.title}</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-gray-900 dark:text-white">
+                <div className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white truncate">
                   {stat.value}
                 </div>
                 <p
@@ -299,19 +298,15 @@ export default function DashboardPage(): React.ReactElement {
       {/* Quick Actions */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Ações Rápidas</CardTitle>
+          <CardTitle className="text-sm sm:text-base">Ações Rápidas</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-3">
-            <Button variant="default" onClick={() => setUploadContactsOpen(true)}>
-              <Upload className="w-4 h-4 mr-2" />
-              Upload de Contatos
-            </Button>
-            <Button variant="default" onClick={() => setCampaignWizardOpen(true)}>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button variant="default" onClick={() => setCampaignWizardOpen(true)} className="w-full sm:w-auto">
               <Edit className="w-4 h-4 mr-2" />
               Nova Convocação
             </Button>
-            <Button variant="outline">
+            <Button variant="outline" className="w-full sm:w-auto">
               <BarChart className="w-4 h-4 mr-2" />
               Ver Relatórios
             </Button>
@@ -322,7 +317,7 @@ export default function DashboardPage(): React.ReactElement {
       {/* Active Campaigns */}
       <Card>
         <CardHeader>
-          <CardTitle>Campanhas Ativas ({activeCampaigns.length})</CardTitle>
+          <CardTitle className="text-base sm:text-lg">Campanhas Ativas ({activeCampaigns.length})</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoadingActive ? (
@@ -339,13 +334,16 @@ export default function DashboardPage(): React.ReactElement {
               mainIcon={Play}
             />
           ) : (
+            <div className="overflow-x-auto -mx-6 sm:mx-0">
+            <div className="inline-block min-w-full align-middle">
+            <div className="overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Progresso</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                  <TableHead className="whitespace-nowrap">Nome</TableHead>
+                  <TableHead className="whitespace-nowrap">Status</TableHead>
+                  <TableHead className="whitespace-nowrap">Progresso</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -355,20 +353,20 @@ export default function DashboardPage(): React.ReactElement {
                   const StatusIcon = statusBadge.icon;
                   return (
                     <TableRow key={campaign.id}>
-                      <TableCell className="font-medium dark:text-gray-200">
+                      <TableCell className="font-medium dark:text-gray-200 text-sm">
                         {campaign.name}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={statusBadge.color}>
+                        <Badge variant="outline" className={`${statusBadge.color} text-xs`}>
                           <span className="flex items-center gap-1.5">
-                            <StatusIcon className={`w-3.5 h-3.5 ${campaign.status === 'RUNNING' ? 'animate-spin' : ''}`} />
-                            {statusBadge.label}
+                            <StatusIcon className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${campaign.status === 'RUNNING' ? 'animate-spin' : ''}`} />
+                            <span className="hidden sm:inline">{statusBadge.label}</span>
                           </span>
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <div className="space-y-1 min-w-50">
-                          <div className="flex justify-between text-sm">
+                        <div className="space-y-1 min-w-[200px]">
+                          <div className="flex justify-between text-xs sm:text-sm">
                             <span>
                               {campaign.sentCount}/{campaign.totalContacts}
                             </span>
@@ -378,17 +376,18 @@ export default function DashboardPage(): React.ReactElement {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="sm" title="Pausar campanha">
+                        <div className="flex justify-end gap-1 sm:gap-2">
+                          <Button variant="ghost" size="sm" title="Pausar campanha" className="h-8 w-8 p-0">
                             <Pause className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" title="Parar campanha">
+                          <Button variant="ghost" size="sm" title="Parar campanha" className="h-8 w-8 p-0">
                             <X className="w-4 h-4" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
                             title="Ver detalhes"
+                            className="h-8 w-8 p-0"
                             onClick={() => {
                               setSelectedCampaign({
                                 id: campaign.id,
@@ -422,6 +421,9 @@ export default function DashboardPage(): React.ReactElement {
                 })}
               </TableBody>
             </Table>
+            </div>
+            </div>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -429,9 +431,9 @@ export default function DashboardPage(): React.ReactElement {
       {/* Recent Campaigns */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Campanhas Recentes (Últimas 10)</CardTitle>
-            <Button variant="link" className="text-blue-600" asChild>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <CardTitle className="text-base sm:text-lg">Campanhas Recentes (Últimas 10)</CardTitle>
+            <Button variant="link" className="text-blue-600 w-fit" asChild>
               <a href="/campaigns">Ver Todas →</a>
             </Button>
           </div>
@@ -451,17 +453,20 @@ export default function DashboardPage(): React.ReactElement {
               mainIcon={FolderOpen}
             />
           ) : (
+            <div className="overflow-x-auto -mx-6 sm:mx-0">
+            <div className="inline-block min-w-full align-middle">
+            <div className="overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nome da Campanha</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Enviadas</TableHead>
-                  <TableHead className="text-right">Entregues</TableHead>
-                  <TableHead className="text-right">Lidas</TableHead>
-                  <TableHead className="text-right">Falhadas</TableHead>
-                  <TableHead className="text-right">Data</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                  <TableHead className="whitespace-nowrap">Nome da Campanha</TableHead>
+                  <TableHead className="whitespace-nowrap">Status</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Enviadas</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Entregues</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Lidas</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Falhadas</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Data</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -473,26 +478,26 @@ export default function DashboardPage(): React.ReactElement {
                       key={campaign.id}
                       className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
-                      <TableCell className="font-medium dark:text-gray-200">
+                      <TableCell className="font-medium dark:text-gray-200 text-sm">
                         {campaign.name}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={statusBadge.color}>
+                        <Badge variant="outline" className={`${statusBadge.color} text-xs`}>
                           <span className="flex items-center gap-1.5">
-                            <StatusIcon className={`w-3.5 h-3.5 ${campaign.status === 'RUNNING' ? 'animate-spin' : ''}`} />
-                            {statusBadge.label}
+                            <StatusIcon className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${campaign.status === 'RUNNING' ? 'animate-spin' : ''}`} />
+                            <span className="hidden sm:inline">{statusBadge.label}</span>
                           </span>
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right">{campaign.sentCount}</TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right text-sm">{campaign.sentCount}</TableCell>
+                      <TableCell className="text-right text-sm">
                         {campaign.deliveredCount}
                       </TableCell>
-                      <TableCell className="text-right">{campaign.readCount}</TableCell>
-                      <TableCell className="text-right text-red-600 dark:text-red-400">
+                      <TableCell className="text-right text-sm">{campaign.readCount}</TableCell>
+                      <TableCell className="text-right text-red-600 dark:text-red-400 text-sm">
                         {campaign.failedCount}
                       </TableCell>
-                      <TableCell className="text-right text-gray-500 dark:text-gray-400">
+                      <TableCell className="text-right text-gray-500 dark:text-gray-400 text-xs sm:text-sm whitespace-nowrap">
                         {formatDate(campaign.createdAt)}
                       </TableCell>
                       <TableCell className="text-right">
@@ -500,6 +505,7 @@ export default function DashboardPage(): React.ReactElement {
                           variant="ghost"
                           size="sm"
                           title="Ver relatório"
+                          className="h-8 w-8 p-0"
                           onClick={() => {
                             setSelectedCampaignForReport(campaign.id);
                             setCampaignReportOpen(true);
@@ -513,15 +519,14 @@ export default function DashboardPage(): React.ReactElement {
                 })}
               </TableBody>
             </Table>
+            </div>
+            </div>
+            </div>
           )}
         </CardContent>
       </Card>
 
       {/* Modals */}
-      <UploadContactsModal
-        open={uploadContactsOpen}
-        onOpenChange={setUploadContactsOpen}
-      />
       <CampaignWizard
         open={campaignWizardOpen}
         onOpenChange={setCampaignWizardOpen}

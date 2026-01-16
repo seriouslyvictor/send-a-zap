@@ -181,10 +181,10 @@ export function ConnectModal({ open, onOpenChange, onConnected }: ConnectModalPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-125">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Connect WhatsApp</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-base sm:text-lg">Connect WhatsApp</DialogTitle>
+          <DialogDescription className="text-sm">
             Scan the QR code below with your WhatsApp mobile app to connect your account.
           </DialogDescription>
         </DialogHeader>
@@ -245,15 +245,16 @@ export function ConnectModal({ open, onOpenChange, onConnected }: ConnectModalPr
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-3">
+          <div className="flex flex-col sm:flex-row justify-end gap-3">
             <Button
               variant="outline"
               onClick={handleRefreshQR}
               disabled={isLoading}
+              className="w-full sm:w-auto"
             >
               Refresh QR
             </Button>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
               Cancel
             </Button>
           </div>

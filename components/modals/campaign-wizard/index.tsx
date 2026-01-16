@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Check } from "lucide-react";
 import {
   Dialog,
@@ -44,6 +44,28 @@ export function CampaignWizard({
     retryDelay: 5,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isWhatsAppConnected, setIsWhatsAppConnected] = useState(false);
+  const [isCheckingConnection, setIsCheckingConnection] = useState(true);
+
+  // Check WhatsApp connection status
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        const response = await fetch("/api/evolution/status");
+        const data = await response.json();
+        setIsWhatsAppConnected(data.success && data.connected);
+      } catch (error) {
+        console.error("Failed to check WhatsApp connection:", error);
+        setIsWhatsAppConnected(false);
+      } finally {
+        setIsCheckingConnection(false);
+      }
+    };
+
+    if (open) {
+      checkConnection();
+    }
+  }, [open]);
 
   const stepTitles = {
     1: "Upload de Contatos",
@@ -205,19 +227,19 @@ export function CampaignWizard({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto w-[95vw]">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="text-base sm:text-lg pr-8">
             Nova Convocação - Passo {currentStep}: {stepTitles[currentStep]}
           </DialogTitle>
         </DialogHeader>
 
         {/* Step Indicator */}
-        <div className="flex items-center justify-center gap-2 py-4">
+        <div className="flex items-center justify-center gap-1 sm:gap-2 py-4">
           {[1, 2, 3, 4].map((step, index) => (
             <div key={step} className="flex items-center">
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium ${
                   step === currentStep
                     ? "bg-blue-600 text-white"
                     : step < currentStep
@@ -225,11 +247,11 @@ export function CampaignWizard({
                     : "bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
                 }`}
               >
-                {step < currentStep ? <Check className="w-4 h-4" /> : step}
+                {step < currentStep ? <Check className="w-3 h-3 sm:w-4 sm:h-4" /> : step}
               </div>
               {index < 3 && (
                 <div
-                  className={`w-12 h-0.5 mx-1 ${
+                  className={`w-8 sm:w-12 h-0.5 mx-0.5 sm:mx-1 ${
                     step < currentStep
                       ? "bg-green-500"
                       : "bg-gray-200 dark:bg-gray-700"
@@ -241,10 +263,10 @@ export function CampaignWizard({
         </div>
 
         {/* Step Labels */}
-        <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-6">
+        <div className="flex justify-between text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mb-6 px-1">
           <span>Upload</span>
           <span>Compor</span>
-          <span>Configurar</span>
+          <span>Config.</span>
           <span>Revisar</span>
         </div>
 
@@ -283,6 +305,8 @@ export function CampaignWizard({
               estimatedMinutes: calculateEstimatedMinutes(),
             }}
             sampleContact={contacts[0]}
+            isWhatsAppConnected={isWhatsAppConnected}
+            isCheckingConnection={isCheckingConnection}
           />
         )}
       </DialogContent>

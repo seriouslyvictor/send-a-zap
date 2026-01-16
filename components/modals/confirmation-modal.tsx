@@ -51,7 +51,7 @@ export function ConfirmationModal({
               </div>
             )}
             <div className="flex-1 space-y-2">
-              <AlertDialogTitle className="text-lg font-semibold">
+              <AlertDialogTitle className="text-base sm:text-lg font-semibold">
                 {title}
               </AlertDialogTitle>
               <AlertDialogDescription className="text-sm text-gray-600 dark:text-gray-400">

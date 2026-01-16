@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Sparkles, Paperclip, X } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +28,11 @@ export function Step2Compose({ onNext, onBack, placeholders, sampleContact }: St
   const [imageUrl, setImageUrl] = useState<string | undefined>();
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
 
+  // Filter out phone and name placeholders
+  const filteredPlaceholders = placeholders.filter(
+    (p) => p.toLowerCase() !== 'phone' && p.toLowerCase() !== 'name'
+  );
+
   const handleAIEnhance = () => {
     // TODO: Implement AI enhancement
     alert("Melhoria com IA será implementada em breve");
@@ -47,9 +53,10 @@ export function Step2Compose({ onNext, onBack, placeholders, sampleContact }: St
   };
 
   const handleAttachImage = () => {
-    // TODO: Implement image upload
-    const mockImageUrl = "https://example.com/image.jpg";
-    setImageUrl(mockImageUrl);
+    // Show "coming soon" toast notification
+    toast.info("Implementação em breve!", {
+      description: "A funcionalidade de anexar imagens estará disponível em breve."
+    });
   };
 
   const handleRemoveImage = () => {
@@ -66,40 +73,39 @@ export function Step2Compose({ onNext, onBack, placeholders, sampleContact }: St
     : message;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Message Input */}
       <div className="space-y-2">
-        <Label htmlFor="message">Mensagem:</Label>
-        <div className="relative">
+        <Label htmlFor="message" className="text-sm">Mensagem:</Label>
+        <div className="space-y-2">
           <Textarea
             id="message"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Digite sua mensagem aqui..."
-            className="min-h-[200px] resize-none"
+            className="min-h-[150px] sm:min-h-[200px] resize-none text-sm"
           />
           <Button
             variant="outline"
             size="sm"
-            className="absolute bottom-2 right-2 gap-2"
+            className="gap-2 w-full sm:w-auto"
             onClick={handleAIEnhance}
           >
             <Sparkles className="w-4 h-4" />
-            IA
+            Melhorar com IA
           </Button>
         </div>
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          Caracteres: {message.length} | Campos dinâmicos detectados:{" "}
-          {(message.match(/\{\{[^}]+\}\}/g) || []).length}
+          Caracteres: {message.length} | Campos dinâmicos: {(message.match(/\{\{[^}]+\}\}/g) || []).length}
         </p>
       </div>
 
       {/* Available Placeholders */}
-      {placeholders.length > 0 && (
+      {filteredPlaceholders.length > 0 && (
         <div className="space-y-2">
           <Label>Campos dinâmicos disponíveis do upload:</Label>
           <div className="flex flex-wrap gap-2">
-            {placeholders.map((placeholder, index) => (
+            {filteredPlaceholders.map((placeholder, index) => (
               <Badge
                 key={index}
                 variant="outline"
@@ -148,10 +154,10 @@ export function Step2Compose({ onNext, onBack, placeholders, sampleContact }: St
 
       {/* Templates */}
       <div className="space-y-2">
-        <Label htmlFor="template">Modelos:</Label>
-        <div className="flex gap-2">
+        <Label htmlFor="template" className="text-sm">Modelos:</Label>
+        <div className="flex flex-col sm:flex-row gap-2">
           <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
-            <SelectTrigger className="flex-1">
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="Carregar Modelo" />
             </SelectTrigger>
             <SelectContent>
@@ -160,12 +166,14 @@ export function Step2Compose({ onNext, onBack, placeholders, sampleContact }: St
               <SelectItem value="promo">Oferta Promocional</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" onClick={handleLoadTemplate}>
-            Carregar
-          </Button>
-          <Button variant="outline" onClick={handleSaveTemplate}>
-            Salvar Modelo
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleLoadTemplate} className="flex-1 sm:flex-none">
+              Carregar
+            </Button>
+            <Button variant="outline" onClick={handleSaveTemplate} className="flex-1 sm:flex-none">
+              Salvar Modelo
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -186,11 +194,11 @@ export function Step2Compose({ onNext, onBack, placeholders, sampleContact }: St
       )}
 
       {/* Actions */}
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={onBack}>
+      <div className="flex flex-col sm:flex-row justify-between gap-2">
+        <Button variant="outline" onClick={onBack} className="w-full sm:w-auto">
           ← Voltar
         </Button>
-        <Button onClick={() => onNext({ message, imageUrl })} disabled={!message}>
+        <Button onClick={() => onNext({ message, imageUrl })} disabled={!message} className="w-full sm:w-auto">
           Próximo: Configurar →
         </Button>
       </div>

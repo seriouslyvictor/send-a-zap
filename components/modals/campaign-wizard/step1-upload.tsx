@@ -294,13 +294,14 @@ export function Step1Upload({ onNext, onCancel }: Step1UploadProps) {
       )}
 
       {/* Actions */}
-      <div className="flex justify-end gap-3">
-        <Button variant="outline" onClick={onCancel}>
+      <div className="flex flex-col sm:flex-row justify-end gap-3">
+        <Button variant="outline" onClick={onCancel} className="w-full sm:w-auto order-2 sm:order-1">
           Cancelar
         </Button>
         <Button
           onClick={() => onNext(contacts)}
           disabled={contacts.length === 0 || isLoading}
+          className="w-full sm:w-auto order-1 sm:order-2"
         >
           Próximo: Compor →
         </Button>

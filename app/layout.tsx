@@ -57,8 +57,8 @@ export default function RootLayout({
       >
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
-          enableSystem
+          defaultTheme="light"
+          enableSystem={false}
           disableTransitionOnChange
         >
           <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -70,7 +70,7 @@ export default function RootLayout({
                   <div className="flex items-center gap-3">
                     <WhatsAppIcon size={32} trigger="loop" />
                     <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-                      WhatsApp Automation
+                      Convocador 9002
                     </h1>
                   </div>
 

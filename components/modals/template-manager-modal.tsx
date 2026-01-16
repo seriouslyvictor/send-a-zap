@@ -103,31 +103,33 @@ export function TemplateManagerModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-225 max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Message Templates</DialogTitle>
+          <DialogTitle className="text-base sm:text-lg">Message Templates</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
           {/* Search and New */}
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <Input
               placeholder="Search templates..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="flex-1"
             />
-            <Button onClick={handleNewTemplate}>+ New</Button>
+            <Button onClick={handleNewTemplate} className="w-full sm:w-auto">+ New</Button>
           </div>
 
           {/* Templates Table */}
           <div className="border rounded-lg overflow-hidden">
+            <div className="overflow-x-auto -mx-6 sm:mx-0">
+            <div className="inline-block min-w-full align-middle">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Template Name</TableHead>
-                  <TableHead>Preview</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="whitespace-nowrap">Template Name</TableHead>
+                  <TableHead className="whitespace-nowrap">Preview</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -184,6 +186,8 @@ export function TemplateManagerModal({
                 )}
               </TableBody>
             </Table>
+            </div>
+            </div>
           </div>
 
           {/* Selected Template Details */}
@@ -216,21 +220,22 @@ export function TemplateManagerModal({
           )}
 
           {/* Actions */}
-          <div className="flex justify-between border-t pt-4">
-            <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row justify-between gap-3 border-t pt-4">
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
               {selectedTemplate && (
                 <>
                   <Button
                     variant="outline"
                     onClick={() => handleEdit(selectedTemplate.id)}
+                    className="w-full sm:w-auto"
                   >
                     Edit
                   </Button>
-                  <Button onClick={handleUseTemplate}>Use Template</Button>
+                  <Button onClick={handleUseTemplate} className="w-full sm:w-auto">Use Template</Button>
                 </>
               )}
             </div>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
               Close
             </Button>
           </div>

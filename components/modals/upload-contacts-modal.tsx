@@ -120,9 +120,9 @@ export function UploadContactsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-175">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Upload Contacts</DialogTitle>
+          <DialogTitle className="text-base sm:text-lg">Upload Contacts</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
@@ -170,15 +170,17 @@ export function UploadContactsModal({
           {/* Preview */}
           {previewContacts.length > 0 && (
             <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-gray-900">Preview:</h3>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Preview:</h3>
               <div className="border rounded-lg overflow-hidden">
+                <div className="overflow-x-auto -mx-6 sm:mx-0">
+                <div className="inline-block min-w-full align-middle">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Phone</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Custom1</TableHead>
-                      <TableHead>Custom2</TableHead>
+                      <TableHead className="whitespace-nowrap">Phone</TableHead>
+                      <TableHead className="whitespace-nowrap">Name</TableHead>
+                      <TableHead className="whitespace-nowrap">Custom1</TableHead>
+                      <TableHead className="whitespace-nowrap">Custom2</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -194,20 +196,22 @@ export function UploadContactsModal({
                     ))}
                   </TableBody>
                 </Table>
+                </div>
+                </div>
               </div>
             </div>
           )}
 
           {/* Blocklist Warning */}
           {blocklistCount > 0 && (
-            <Alert className="bg-yellow-50 border-yellow-200">
-              <AlertDescription className="text-yellow-800">
+            <Alert className="bg-yellow-50 dark:bg-yellow-950 border-yellow-200 dark:border-yellow-800">
+              <AlertDescription className="text-yellow-800 dark:text-yellow-300">
                 ⚠️ {blocklistCount} contacts are on the blocklist
-                <div className="mt-2 flex gap-2">
-                  <Button variant="outline" size="sm">
+                <div className="mt-2 flex flex-col sm:flex-row gap-2">
+                  <Button variant="outline" size="sm" className="w-full sm:w-auto">
                     View Blocklist
                   </Button>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" className="w-full sm:w-auto">
                     Remove from Upload
                   </Button>
                 </div>
@@ -217,21 +221,22 @@ export function UploadContactsModal({
 
           {/* Valid Contacts Count */}
           {validContactsCount > 0 && (
-            <Alert className="bg-blue-50 border-blue-200">
-              <AlertDescription className="text-blue-800">
+            <Alert className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+              <AlertDescription className="text-blue-800 dark:text-blue-300">
                 ✅ {validContactsCount} contacts ready to send
               </AlertDescription>
             </Alert>
           )}
 
           {/* Actions */}
-          <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <div className="flex flex-col sm:flex-row justify-end gap-3">
+            <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
               Cancel
             </Button>
             <Button
               onClick={handleUseContacts}
               disabled={contacts.length === 0}
+              className="w-full sm:w-auto"
             >
               Use These Contacts
             </Button>
