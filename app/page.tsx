@@ -309,7 +309,7 @@ export default function DashboardPage(): React.ReactElement {
             </Button>
             <Button variant="default" onClick={() => setCampaignWizardOpen(true)}>
               <Edit className="w-4 h-4 mr-2" />
-              Nova Campanha
+              Nova Convocação
             </Button>
             <Button variant="outline">
               <BarChart className="w-4 h-4 mr-2" />

@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:webpack": "next dev --no-turbopack",
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
@@ -22,6 +23,7 @@
     "docker:dev:logs": "docker-compose --env-file .env -f deployment/docker-compose.dev.yml logs -f nextjs",
     "docker:dev:ps": "docker-compose --env-file .env -f deployment/docker-compose.dev.yml ps",
     "docker:dev:restart": "docker-compose --env-file .env -f deployment/docker-compose.dev.yml restart nextjs",
+    "docker:dev:clear-cache": "docker exec whatsapp_nextjs_dev rm -rf /app/.next",
     "docker:dev:clean": "docker-compose --env-file .env -f deployment/docker-compose.dev.yml down -v",
     "docker:up": "docker-compose --env-file .env -f deployment/docker-compose.yml up -d",
     "docker:down": "docker-compose --env-file .env -f deployment/docker-compose.yml down",

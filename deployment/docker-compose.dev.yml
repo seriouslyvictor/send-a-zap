@@ -276,6 +276,8 @@ services:
     image: node:20-alpine
     restart: unless-stopped
     working_dir: /app
+    # Use 'npm run dev' for Turbopack (default, faster)
+    # Use 'npm run dev:webpack' if hot reload issues persist (more reliable on Windows)
     command: sh -c "npm install && npm run dev"
     ports:
       - "3000:3000"
@@ -289,9 +291,15 @@ services:
       - N8N_WEBHOOK_URL=http://n8n:5678
       - EVOLUTION_API_URL=http://evolution-api:8080
       - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
-      # Enable hot reload in container
+      # Enable hot reload in container (Docker + Windows fix)
       - WATCHPACK_POLLING=true
       - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=1000
+      - NEXT_TELEMETRY_DISABLED=1
+      # Force Turbopack to use polling
+      - TURBOPACK_USE_POLLING=true
+      # Disable Next.js caching for development
+      - NEXT_DISABLE_SWC_WASM=1
     volumes:
       # Mount source code - changes reflect immediately
       - ../:/app

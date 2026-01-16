@@ -31,7 +31,9 @@
       "Bash(node -e:*)",
       "Skill(n8n-workflow-patterns)",
       "Skill(n8n-node-configuration)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker volume:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
