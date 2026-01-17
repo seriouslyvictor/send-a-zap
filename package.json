@@ -33,7 +33,7 @@
     "docker:restart": "docker-compose --env-file .env -f deployment/docker-compose.yml restart",
     "docker:rebuild": "docker-compose --env-file .env -f deployment/docker-compose.yml up -d --build --force-recreate nextjs",
     "docker:clean": "docker-compose --env-file .env -f deployment/docker-compose.yml down -v",
-    "build:check": "next build && next lint && tsc --noEmit"
+    "build:check": "next build && eslint . && tsc --noEmit"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

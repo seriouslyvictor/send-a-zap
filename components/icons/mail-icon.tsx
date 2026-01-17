@@ -8,9 +8,10 @@ import ICON from './mail.json';
 interface MailIconProps {
   size?: number;
   trigger?: 'hover' | 'click' | 'loop';
+  className?: string;
 }
 
-export function MailIcon({ size = 24, trigger = 'hover' }: MailIconProps) {
+export function MailIcon({ size = 24, trigger = 'hover', className }: MailIconProps) {
   const playerRef = useRef<Player>(null);
   const { theme } = useTheme();
 
@@ -24,7 +25,7 @@ export function MailIcon({ size = 24, trigger = 'hover' }: MailIconProps) {
     <div
       onMouseEnter={trigger === 'hover' ? handleTrigger : undefined}
       onClick={trigger === 'click' ? handleTrigger : undefined}
-      className="inline-flex items-center justify-center"
+      className={`inline-flex items-center justify-center ${className || ''}`}
     >
       <Player
         ref={playerRef}

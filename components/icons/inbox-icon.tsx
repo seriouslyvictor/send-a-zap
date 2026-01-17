@@ -8,9 +8,10 @@ import ICON from './inbox.json';
 interface InboxIconProps {
   size?: number;
   trigger?: 'hover' | 'click' | 'loop';
+  className?: string;
 }
 
-export function InboxIcon({ size = 24, trigger = 'hover' }: InboxIconProps) {
+export function InboxIcon({ size = 24, trigger = 'hover', className }: InboxIconProps) {
   const playerRef = useRef<Player>(null);
   const { theme } = useTheme();
 
@@ -24,7 +25,7 @@ export function InboxIcon({ size = 24, trigger = 'hover' }: InboxIconProps) {
     <div
       onMouseEnter={trigger === 'hover' ? handleTrigger : undefined}
       onClick={trigger === 'click' ? handleTrigger : undefined}
-      className="inline-flex items-center justify-center"
+      className={`inline-flex items-center justify-center ${className || ''}`}
     >
       <Player
         ref={playerRef}

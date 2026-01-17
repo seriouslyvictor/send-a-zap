@@ -10,7 +10,7 @@ import {
  * Helper function to create a mock Excel file from data
  */
 async function createMockXLSXFile(
-  data: (string | number)[][],
+  data: (string | number | boolean | null | undefined)[][],
   filename: string = 'test.xlsx',
   mimeType: string = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 ): Promise<File> {

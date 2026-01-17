@@ -13,10 +13,11 @@ interface MenuItem {
   iconColor: string
 }
 
-interface MenuBarProps extends React.HTMLAttributes<HTMLDivElement> {
+interface MenuBarProps {
   items: MenuItem[]
   activeItem?: string
   onItemClick?: (label: string) => void
+  className?: string
 }
 
 const itemVariants = {
@@ -35,21 +36,21 @@ const glowVariants = {
     opacity: 1,
     scaleX: 1,
     transition: {
-      opacity: { duration: 0.3, ease: [0.4, 0, 0.2, 1] },
-      scaleX: { duration: 0.3, ease: [0.4, 0, 0.2, 1] },
+      opacity: { duration: 0.3, ease: [0.4, 0, 0.2, 1] as const },
+      scaleX: { duration: 0.3, ease: [0.4, 0, 0.2, 1] as const },
     },
   },
 }
 
 const sharedTransition = {
-  type: "spring",
+  type: "spring" as const,
   stiffness: 100,
   damping: 20,
   duration: 0.5,
 }
 
 export const MenuBar = React.forwardRef<HTMLDivElement, MenuBarProps>(
-  ({ className, items, activeItem, onItemClick, ...props }, ref) => {
+  ({ className, items, activeItem, onItemClick }, ref) => {
     return (
       <motion.nav
         ref={ref}
@@ -59,7 +60,6 @@ export const MenuBar = React.forwardRef<HTMLDivElement, MenuBarProps>(
         )}
         initial="initial"
         whileHover="hover"
-        {...props}
       >
         <ul className="flex items-center gap-2 relative z-10">
           {items.map((item) => {

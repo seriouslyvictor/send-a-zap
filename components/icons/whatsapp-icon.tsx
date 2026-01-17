@@ -8,9 +8,10 @@ import ICON from './inbox.json';
 interface WhatsAppIconProps {
   size?: number;
   trigger?: 'hover' | 'click' | 'loop' | 'loop-on-hover';
+  className?: string;
 }
 
-export function WhatsAppIcon({ size = 32, trigger = 'loop' }: WhatsAppIconProps) {
+export function WhatsAppIcon({ size = 32, trigger = 'loop', className }: WhatsAppIconProps) {
   const playerRef = useRef<Player>(null);
   const { theme } = useTheme();
 
@@ -24,7 +25,7 @@ export function WhatsAppIcon({ size = 32, trigger = 'loop' }: WhatsAppIconProps)
     <div
       onMouseEnter={trigger === 'hover' || trigger === 'loop-on-hover' ? handleTrigger : undefined}
       onClick={trigger === 'click' ? handleTrigger : undefined}
-      className="inline-flex items-center justify-center"
+      className={`inline-flex items-center justify-center ${className || ''}`}
     >
       <Player
         ref={playerRef}

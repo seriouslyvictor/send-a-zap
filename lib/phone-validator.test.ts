@@ -397,7 +397,7 @@ describe('Phone Validator', () => {
     });
 
     it('should match case-insensitively', () => {
-      const data = [
+      const data: Record<string, string>[] = [
         { Phone: '11999998888', name: 'John' },
         { PHONE: '21988887777', name: 'Jane' },
         { phone: '31977776666', name: 'Bob' },

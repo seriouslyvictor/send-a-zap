@@ -8,9 +8,10 @@ import ICON from './cross.json';
 interface CrossIconProps {
   size?: number;
   trigger?: 'hover' | 'click' | 'loop';
+  className?: string;
 }
 
-export function CrossIcon({ size = 24, trigger = 'hover' }: CrossIconProps) {
+export function CrossIcon({ size = 24, trigger = 'hover', className }: CrossIconProps) {
   const playerRef = useRef<Player>(null);
   const { theme } = useTheme();
 
@@ -24,7 +25,7 @@ export function CrossIcon({ size = 24, trigger = 'hover' }: CrossIconProps) {
     <div
       onMouseEnter={trigger === 'hover' ? handleTrigger : undefined}
       onClick={trigger === 'click' ? handleTrigger : undefined}
-      className="inline-flex items-center justify-center"
+      className={`inline-flex items-center justify-center ${className || ''}`}
     >
       <Player
         ref={playerRef}
