@@ -30,6 +30,12 @@ export interface StatCard {
   trend: "up" | "down" | "neutral";
 }
 
+export interface FailedMessage {
+  phone: string;
+  name: string;
+  error: string;
+}
+
 export interface SelectedCampaignDetails {
   id: string;
   name: string;
@@ -48,5 +54,5 @@ export interface SelectedCampaignDetails {
   retries: boolean;
   maxRetries: number;
   message: string;
-  failedMessages: unknown[];
+  failedMessages: FailedMessage[];
 }
