@@ -8,9 +8,10 @@ import ICON from './pie-chart.json';
 interface DashboardIconProps {
   size?: number;
   trigger?: 'hover' | 'click' | 'loop';
+  className?: string;
 }
 
-export function DashboardIcon({ size = 24, trigger = 'hover' }: DashboardIconProps) {
+export function DashboardIcon({ size = 24, trigger = 'hover', className }: DashboardIconProps) {
   const playerRef = useRef<Player>(null);
   const { theme } = useTheme();
 
@@ -24,7 +25,7 @@ export function DashboardIcon({ size = 24, trigger = 'hover' }: DashboardIconPro
     <div
       onMouseEnter={trigger === 'hover' ? handleTrigger : undefined}
       onClick={trigger === 'click' ? handleTrigger : undefined}
-      className="inline-flex items-center justify-center"
+      className={`inline-flex items-center justify-center ${className || ''}`}
     >
       <Player
         ref={playerRef}

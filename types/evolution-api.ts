@@ -1,7 +1,7 @@
 // Evolution API Types
 
 export interface EvolutionInstance {
-  instanceName: string;
+  instanceName?: string;
   instanceId?: string;
   // Status can be "open", "close", "connecting", or "created" depending on API version
   status?: "open" | "close" | "connecting" | "created" | string;
@@ -12,6 +12,13 @@ export interface EvolutionInstance {
   apikey?: string;
   serverUrl?: string;
   integration?: "WHATSAPP-BAILEYS" | "WHATSAPP-BUSINESS" | string;
+  // Alternative field names from Evolution API v2
+  name?: string;
+  id?: string;
+  connectionStatus?: string;
+  ownerJid?: string;
+  profilePicUrl?: string;
+  token?: string;
 }
 
 export interface FetchInstancesResponseItem {

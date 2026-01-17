@@ -8,9 +8,10 @@ import ICON from './sheet-wired.json';
 interface SheetIconProps {
   size?: number;
   trigger?: 'hover' | 'click' | 'loop';
+  className?: string;
 }
 
-export function SheetIcon({ size = 48, trigger = 'hover' }: SheetIconProps) {
+export function SheetIcon({ size = 48, trigger = 'hover', className }: SheetIconProps) {
   const playerRef = useRef<Player>(null);
   const { theme } = useTheme();
 
@@ -24,7 +25,7 @@ export function SheetIcon({ size = 48, trigger = 'hover' }: SheetIconProps) {
     <div
       onMouseEnter={trigger === 'hover' ? handleTrigger : undefined}
       onClick={trigger === 'click' ? handleTrigger : undefined}
-      className="inline-flex items-center justify-center"
+      className={`inline-flex items-center justify-center ${className || ''}`}
     >
       <Player
         ref={playerRef}

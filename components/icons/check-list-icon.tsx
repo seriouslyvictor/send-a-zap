@@ -8,9 +8,10 @@ import ICON from './check-list.json';
 interface CheckListIconProps {
   size?: number;
   trigger?: 'hover' | 'click' | 'loop';
+  className?: string;
 }
 
-export function CheckListIcon({ size = 24, trigger = 'hover'}: CheckListIconProps) {
+export function CheckListIcon({ size = 24, trigger = 'hover', className }: CheckListIconProps) {
   const playerRef = useRef<Player>(null);
   const { theme } = useTheme();
 
@@ -24,7 +25,7 @@ export function CheckListIcon({ size = 24, trigger = 'hover'}: CheckListIconProp
     <div
       onMouseEnter={trigger === 'hover' ? handleTrigger : undefined}
       onClick={trigger === 'click' ? handleTrigger : undefined}
-      className="inline-flex items-center justify-center"
+      className={`inline-flex items-center justify-center ${className || ''}`}
     >
       <Player
         ref={playerRef}

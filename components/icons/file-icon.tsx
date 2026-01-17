@@ -8,9 +8,10 @@ import ICON from './file.json';
 interface FileIconProps {
   size?: number;
   trigger?: 'hover' | 'click' | 'loop';
+  className?: string;
 }
 
-export function FileIcon({ size = 24, trigger = 'hover' }: FileIconProps) {
+export function FileIcon({ size = 24, trigger = 'hover', className }: FileIconProps) {
   const playerRef = useRef<Player>(null);
   const { theme } = useTheme();
 
@@ -24,7 +25,7 @@ export function FileIcon({ size = 24, trigger = 'hover' }: FileIconProps) {
     <div
       onMouseEnter={trigger === 'hover' ? handleTrigger : undefined}
       onClick={trigger === 'click' ? handleTrigger : undefined}
-      className="inline-flex items-center justify-center"
+      className={`inline-flex items-center justify-center ${className || ''}`}
     >
       <Player
         ref={playerRef}

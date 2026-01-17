@@ -8,6 +8,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
@@ -31,7 +32,8 @@
     "docker:ps": "docker-compose --env-file .env -f deployment/docker-compose.yml ps",
     "docker:restart": "docker-compose --env-file .env -f deployment/docker-compose.yml restart",
     "docker:rebuild": "docker-compose --env-file .env -f deployment/docker-compose.yml up -d --build --force-recreate nextjs",
-    "docker:clean": "docker-compose --env-file .env -f deployment/docker-compose.yml down -v"
+    "docker:clean": "docker-compose --env-file .env -f deployment/docker-compose.yml down -v",
+    "build:check": "next build && eslint . && tsc --noEmit"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -76,6 +78,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/canvas-confetti": "^1.6.4",
     "@types/node": "^20",
     "@types/pg": "^8.11.10",
     "@types/qrcode": "^1.5.6",

@@ -22,6 +22,11 @@ RUN npm ci && \
 FROM node:20-alpine AS builder
 WORKDIR /app
 
+# Accept build arguments
+ARG DATABASE_URL=postgresql://build:build@localhost:5432/build?schema=public
+ARG BUILDTIME
+ARG VERSION
+
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 
@@ -31,6 +36,7 @@ COPY . .
 # Set environment to production for optimal build
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV DATABASE_URL=$DATABASE_URL
 
 # Build Next.js application
 # Note: Server-side env vars are baked into the build for API routes

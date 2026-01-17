@@ -115,7 +115,7 @@ export class EvolutionAPI {
       // We normalize to: [{ instanceName, status, profilePictureUrl, ... }]
       return response.map((item) => {
         // Handle both v1 format (with instance wrapper) and v2 format (direct)
-        const data = item.instance || item;
+        const data = 'instance' in item ? item.instance : item;
         return {
           instanceName: data.instanceName || data.name,
           instanceId: data.instanceId || data.id,

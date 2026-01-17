@@ -553,7 +553,7 @@ export default function DashboardPage(): React.ReactElement {
         <CampaignDetailsModal
           open={campaignDetailsOpen}
           onOpenChange={setCampaignDetailsOpen}
-          campaign={selectedCampaign}
+          campaign={selectedCampaign || undefined}
         />
       )}
       {campaignReportOpen && (

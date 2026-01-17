@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getPrisma } from "@/lib/prisma";
+import { MessageStatus } from "@prisma/client";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -31,9 +32,9 @@ export async function GET(request: NextRequest, { params }: RouteParams): Promis
     const skip = (validPage - 1) * validLimit;
 
     // Build where clause
-    const where: { campaignId: string; status?: string } = { campaignId: id };
-    if (status) {
-      where.status = status;
+    const where: { campaignId: string; status?: MessageStatus } = { campaignId: id };
+    if (status && Object.values(MessageStatus).includes(status as MessageStatus)) {
+      where.status = status as MessageStatus;
     }
 
     // Fetch messages

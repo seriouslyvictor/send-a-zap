@@ -17,12 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-interface FailedMessage {
-  phone: string;
-  name: string;
-  error: string;
-}
+import { FailedMessage } from "@/types/dashboard-stats";
 
 interface CampaignDetailsModalProps {
   open: boolean;
