@@ -13,12 +13,6 @@ import { getPrisma } from "@/lib/prisma";
  */
 type Period = "today" | "week" | "month" | "all";
 
-interface ComparisonData {
-  yesterdayTotal: number;
-  changePercent: number;
-  trend: "up" | "down" | "neutral";
-}
-
 function getDateFilter(period: Period): { gte: Date } | undefined {
   const now = new Date();
 

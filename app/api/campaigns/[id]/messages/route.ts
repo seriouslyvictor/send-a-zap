@@ -31,7 +31,7 @@ export async function GET(request: NextRequest, { params }: RouteParams): Promis
     const skip = (validPage - 1) * validLimit;
 
     // Build where clause
-    const where: any = { campaignId: id };
+    const where: { campaignId: string; status?: string } = { campaignId: id };
     if (status) {
       where.status = status;
     }

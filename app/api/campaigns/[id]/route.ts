@@ -38,7 +38,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         ? {
             messages: {
               where: messageStatus
-                ? { status: messageStatus as any }
+                ? { status: messageStatus }
                 : undefined,
               orderBy: { createdAt: "asc" },
               skip,
@@ -227,7 +227,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       "instanceName",
     ];
 
-    const updateData: Record<string, any> = {};
+    const updateData: Record<string, string | number | boolean> = {};
     for (const field of allowedFields) {
       if (body[field] !== undefined) {
         updateData[field] = body[field];

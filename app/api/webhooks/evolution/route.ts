@@ -289,8 +289,8 @@ async function handleMessageUpdate(payload: EvolutionWebhookPayload) {
   }
 
   // Prepare update data
-  const updateData: any = { status: newStatus };
-  const campaignUpdate: any = {};
+  const updateData: { status: MessageStatus; sentAt?: Date; deliveredAt?: Date; readAt?: Date; errorMessage?: string } = { status: newStatus };
+  const campaignUpdate: { sentCount?: { increment: number }; deliveredCount?: { increment: number }; readCount?: { increment: number }; failedCount?: { increment: number } } = {};
 
   // Add timestamps based on new status
   switch (newStatus) {

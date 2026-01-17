@@ -2,10 +2,10 @@ import type {
   CreateInstanceRequest,
   CreateInstanceResponse,
   EvolutionInstance,
-  FetchInstancesResponseItem,
   QRCodeResponse,
   ConnectionStatus,
 } from "@/types/evolution-api";
+import type { FetchInstancesResponseItem } from "@/types/evolution-api";
 
 /**
  * Evolution API Client
@@ -100,7 +100,7 @@ export class EvolutionAPI {
       : "";
 
     try {
-      const response = await this.request<any[]>(
+      const response = await this.request<FetchInstancesResponseItem[] | EvolutionInstance[]>(
         `/instance/fetchInstances${params}`
       );
 

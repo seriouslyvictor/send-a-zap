@@ -235,7 +235,6 @@ export function renderMessageWithMeta(
   const {
     fallback = '',
     treatEmptyAsMissing = false,
-    validateLength = false, // Don't throw, just report
   } = options;
 
   const placeholdersUsed: string[] = [];

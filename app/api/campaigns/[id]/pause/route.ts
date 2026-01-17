@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getPrisma } from "@/lib/prisma";
-import { CampaignStatus, MessageStatus } from "@prisma/client";
+import { CampaignStatus } from "@prisma/client";
 
 interface RouteParams {
   params: Promise<{ id: string }>;

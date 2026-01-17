@@ -43,7 +43,6 @@ export function CampaignWizard({
     maxRetries: 3,
     retryDelay: 5,
   });
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isWhatsAppConnected, setIsWhatsAppConnected] = useState(false);
   const [isCheckingConnection, setIsCheckingConnection] = useState(true);
 
@@ -116,7 +115,6 @@ export function CampaignWizard({
   }
 
   const createCampaign = async (startImmediately: boolean) => {
-    setIsSubmitting(true);
     try {
       // Prepare contacts in the correct format
       const formattedContacts = contacts.map((contact) => ({
@@ -188,8 +186,6 @@ export function CampaignWizard({
       alert(
         `Erro: ${error instanceof Error ? error.message : "Erro desconhecido"}`
       );
-    } finally {
-      setIsSubmitting(false);
     }
   };
 

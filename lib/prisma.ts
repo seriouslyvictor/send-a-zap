@@ -18,10 +18,9 @@ import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 
 // Declare global type for Prisma client singleton
+// TypeScript requires 'var' in global declarations
 declare global {
-  // eslint-disable-next-line no-var
   var prisma: PrismaClient | undefined;
-  // eslint-disable-next-line no-var
   var pgPool: Pool | undefined;
 }
 

@@ -36,8 +36,8 @@ describe('Phone Validator', () => {
     });
 
     it('should handle non-string types', () => {
-      expect(normalizePhone(11999998888 as any)).toBe('5511999998888');
-      expect(normalizePhone(true as any)).toBe('');
+      expect(normalizePhone(11999998888 as unknown as string)).toBe('5511999998888');
+      expect(normalizePhone(true as unknown as string)).toBe('');
     });
   });
 
@@ -371,7 +371,7 @@ describe('Phone Validator', () => {
         '5521988887777', // string - valid
         null, // null - invalid
         undefined, // undefined - invalid
-      ] as any[];
+      ] as unknown as string[];
 
       const result = validatePhoneBatch(phones);
 

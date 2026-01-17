@@ -301,8 +301,8 @@ describe('parseXLSXFile', () => {
     it('should handle null and undefined values', async () => {
       const file = await createMockXLSXFile([
         ['Name', 'Email'],
-        ['John', null as any],
-        [undefined as any, 'jane@example.com'],
+        ['John', null as unknown as string],
+        [undefined as unknown as string, 'jane@example.com'],
       ]);
 
       const result = await parseXLSXFile(file);

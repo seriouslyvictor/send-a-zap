@@ -11,7 +11,7 @@ export interface EvolutionInstance {
   profileStatus?: string;
   apikey?: string;
   serverUrl?: string;
-  integration?: any;
+  integration?: "WHATSAPP-BAILEYS" | "WHATSAPP-BUSINESS" | string;
 }
 
 export interface FetchInstancesResponseItem {

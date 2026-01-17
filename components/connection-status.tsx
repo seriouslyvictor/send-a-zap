@@ -115,6 +115,8 @@ export function ConnectionStatus({ onConnectClick, refreshTrigger, cancelTrigger
         connectionPromiseResolve.current = null;
       }
     };
+    // startPolling is intentionally only called on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Refresh when trigger changes

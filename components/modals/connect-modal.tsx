@@ -48,6 +48,8 @@ export function ConnectModal({ open, onOpenChange, onConnected }: ConnectModalPr
       isMounted.current = false;
       stopPolling();
     };
+    // fetchQRCode and startPollingStatus are intentionally called only when modal opens
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const fetchQRCode = async () => {
@@ -160,6 +162,8 @@ export function ConnectModal({ open, onOpenChange, onConnected }: ConnectModalPr
         checkConnectionStatus();
       }
     }, 3000);
+    // checkConnectionStatus is intentionally only set up on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const stopPolling = () => {
@@ -215,6 +219,7 @@ export function ConnectModal({ open, onOpenChange, onConnected }: ConnectModalPr
                   </div>
                 </div>
               ) : qrCode ? (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={qrCode}
                   alt="QR Code"

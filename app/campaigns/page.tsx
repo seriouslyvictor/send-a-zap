@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import dynamic from "next/dynamic";
 import { format } from "date-fns";
 import { CalendarIcon, Loader2, RefreshCw } from "lucide-react";
 import { DateRange } from "react-day-picker";
@@ -146,7 +145,7 @@ export default function CampaignsListPage(): React.ReactElement {
         <CardContent>
           <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4">
             {/* Status Filter */}
-            <div className="flex flex-col gap-2 flex-1 min-w-[200px]">
+            <div className="flex flex-col gap-2 flex-1 min-w-50">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 Status
               </label>
@@ -165,7 +164,7 @@ export default function CampaignsListPage(): React.ReactElement {
             </div>
 
             {/* Date Range Filter */}
-            <div className="flex flex-col gap-2 flex-1 min-w-[200px]">
+            <div className="flex flex-col gap-2 flex-1 min-w-50">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 Periodo
               </label>

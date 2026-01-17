@@ -10,7 +10,9 @@ export const AnimatedThemeToggle = ({className}:{className?:string}) => {
   const [mounted, setMounted] = useState(false);
 
   // Avoid hydration mismatch
+  // This pattern is acceptable for handling hydration in Next.js
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 
