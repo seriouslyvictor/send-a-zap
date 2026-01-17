@@ -34,7 +34,9 @@
       "Bash(grep:*)",
       "Bash(docker ps:*)",
       "Bash(docker volume:*)",
-      "Skill(vercel-react-best-practices)"
+      "Skill(vercel-react-best-practices)",
+      "Bash(npm run build:check:*)",
+      "Bash(git log:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getPrisma } from "@/lib/prisma";
-import { CampaignStatus } from "@prisma/client";
+import { CampaignStatus, MessageStatus } from "@prisma/client";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -37,9 +37,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       include: includeMessages
         ? {
             messages: {
-              where: messageStatus
-                ? { status: messageStatus }
-                : undefined,
+              where:
+                messageStatus && Object.values(MessageStatus).includes(messageStatus as MessageStatus)
+                  ? { status: messageStatus as MessageStatus }
+                  : undefined,
               orderBy: { createdAt: "asc" },
               skip,
               take: validLimit,
