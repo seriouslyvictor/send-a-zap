@@ -97,13 +97,46 @@ export function Step1Upload({ onNext, onCancel }: Step1UploadProps) {
         setDetectionInfo(`✓ ${getDetectionMessage(detection)}`);
       }
 
+      // Helper function to find name column value
+      const findNameValue = (row: Record<string, string>): string => {
+        // Common name column patterns (case-insensitive)
+        const namePatterns = [
+          'name', 'Name', 'NAME',
+          'nome', 'Nome', 'NOME',
+          'cliente', 'Cliente', 'CLIENTE',
+          'contato', 'Contato', 'CONTATO',
+          'nome_completo', 'Nome_Completo', 'NOME_COMPLETO',
+          'nome completo', 'Nome Completo', 'NOME COMPLETO',
+          'full_name', 'Full_Name', 'FULL_NAME',
+          'fullname', 'FullName', 'FULLNAME'
+        ];
+
+        // Try exact matches first
+        for (const pattern of namePatterns) {
+          if (row[pattern]) {
+            return row[pattern];
+          }
+        }
+
+        // Try case-insensitive partial matches
+        const rowKeys = Object.keys(row);
+        for (const key of rowKeys) {
+          const lowerKey = key.toLowerCase();
+          if (lowerKey.includes('nome') || lowerKey.includes('name') || lowerKey.includes('cliente')) {
+            return row[key];
+          }
+        }
+
+        return "";
+      };
+
       // Map the detected phone column to "phone" field
       // and keep all columns (including the phone column) for preview
       const mappedData = result.data.map((row) => {
         const phoneValue = row[detection.columnName!] || "";
         const mappedRow: Contact = {
           phone: phoneValue,
-          name: row.name || row.Name || row.NOME || "",
+          name: findNameValue(row),
         };
 
         // Add all columns as custom fields (including original phone column for preview)

@@ -33,7 +33,8 @@
       "Skill(n8n-node-configuration)",
       "Bash(grep:*)",
       "Bash(docker ps:*)",
-      "Bash(docker volume:*)"
+      "Bash(docker volume:*)",
+      "Skill(vercel-react-best-practices)"
     ]
   },
   "enableAllProjectMcpServers": true,

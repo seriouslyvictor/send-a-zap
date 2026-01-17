@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { format } from "date-fns";
 import { CalendarIcon, Loader2, RefreshCw } from "lucide-react";
 import { DateRange } from "react-day-picker";
@@ -32,17 +33,7 @@ import {
   CAMPAIGN_STATUS_CONFIG,
 } from "@/types/campaign";
 
-const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: "ALL", label: "Todos" },
-  { value: "DRAFT", label: "Rascunho" },
-  { value: "PENDING", label: "Pendente" },
-  { value: "RUNNING", label: "Em Execucao" },
-  { value: "PAUSED", label: "Pausado" },
-  { value: "COMPLETED", label: "Concluido" },
-  { value: "CANCELLED", label: "Cancelado" },
-  { value: "FAILED", label: "Falhou" },
-];
-
+// Extract utility functions outside component to avoid recreation on every render
 function formatDateTime(date: string): string {
   return format(new Date(date), "dd/MM/yyyy HH:mm");
 }
@@ -57,6 +48,17 @@ function formatDateRangeDisplay(dateRange: DateRange | undefined): string {
   if (!dateRange.to) return format(dateRange.from, "dd/MM/yyyy");
   return `${format(dateRange.from, "dd/MM/yyyy")} - ${format(dateRange.to, "dd/MM/yyyy")}`;
 }
+
+const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "ALL", label: "Todos" },
+  { value: "DRAFT", label: "Rascunho" },
+  { value: "PENDING", label: "Pendente" },
+  { value: "RUNNING", label: "Em Execucao" },
+  { value: "PAUSED", label: "Pausado" },
+  { value: "COMPLETED", label: "Concluido" },
+  { value: "CANCELLED", label: "Cancelado" },
+  { value: "FAILED", label: "Falhou" },
+];
 
 export default function CampaignsListPage(): React.ReactElement {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);

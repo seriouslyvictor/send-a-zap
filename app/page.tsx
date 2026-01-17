@@ -13,29 +13,114 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import dynamic from "next/dynamic";
 import { Edit, BarChart, Pause, X, Eye, Loader2, Play, FolderOpen, Rocket, FileText } from "lucide-react";
 import { MailIcon } from "@/components/icons/mail-icon";
 import { CheckIcon } from "@/components/icons/check-icon";
 import { CheckListIcon } from "@/components/icons/check-list-icon";
 import { CrossIcon } from "@/components/icons/cross-icon";
-import { CampaignWizard } from "@/components/modals/campaign-wizard";
-import { CampaignDetailsModal } from "@/components/modals/campaign-details-modal";
-import { CampaignReportModal } from "@/components/modals/campaign-report-modal";
 import { EmptyState } from "@/components/ui/empty-state-beautiful-accessible-no-data-states";
+
+// Dynamic imports for modals - only load when opened
+const CampaignWizard = dynamic(() =>
+  import("@/components/modals/campaign-wizard").then(mod => ({ default: mod.CampaignWizard })),
+  { ssr: false }
+);
+
+const CampaignDetailsModal = dynamic(() =>
+  import("@/components/modals/campaign-details-modal").then(mod => ({ default: mod.CampaignDetailsModal })),
+  { ssr: false }
+);
+
+const CampaignReportModal = dynamic(() =>
+  import("@/components/modals/campaign-report-modal").then(mod => ({ default: mod.CampaignReportModal })),
+  { ssr: false }
+);
 import { Campaign, CAMPAIGN_STATUS_CONFIG, CampaignStatusType } from "@/types/campaign";
+import { DashboardStats, ComparisonData, SelectedCampaignDetails } from "@/types/dashboard-stats";
+
+// Extract utility functions outside component to avoid recreation on every render
+function formatNumber(num: number): string {
+  return num.toLocaleString("pt-BR");
+}
+
+function getComparisonSubtitle(comparison: ComparisonData | null): string {
+  if (!comparison) {
+    return "Total enviadas";
+  }
+
+  let arrow: string;
+  if (comparison.changePercent > 0) {
+    arrow = "↑";
+  } else if (comparison.changePercent < 0) {
+    arrow = "↓";
+  } else {
+    arrow = "→";
+  }
+
+  return `${arrow} ${Math.abs(comparison.changePercent)}% vs ontem`;
+}
+
+function getDeliveryTrend(rate: number): "up" | "neutral" | "down" {
+  if (rate >= 90) return "up";
+  if (rate >= 70) return "neutral";
+  return "down";
+}
+
+function getReadTrend(rate: number): "up" | "neutral" | "down" {
+  if (rate >= 50) return "up";
+  if (rate >= 30) return "neutral";
+  return "down";
+}
+
+function getFailureTrend(rate: number): "up" | "neutral" | "down" {
+  if (rate <= 5) return "up";
+  if (rate <= 10) return "neutral";
+  return "down";
+}
+
+function calculateProgress(campaign: Campaign): number {
+  if (campaign.totalContacts === 0) return 0;
+  return Math.round((campaign.sentCount / campaign.totalContacts) * 100);
+}
+
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString("pt-BR", { month: "short", day: "numeric" });
+}
+
+function getTrendColorClass(trend: string): string {
+  switch (trend) {
+    case "up":
+      return "text-green-600 dark:text-green-400";
+    case "down":
+      return "text-red-600 dark:text-red-400";
+    default:
+      return "text-gray-500 dark:text-gray-400";
+  }
+}
+
+function getStatusBadge(status: string) {
+  return CAMPAIGN_STATUS_CONFIG[status as CampaignStatusType] || {
+    color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+    label: status,
+    variant: "outline" as const,
+    icon: FileText
+  };
+}
 
 export default function DashboardPage(): React.ReactElement {
   // Modal states
   const [campaignWizardOpen, setCampaignWizardOpen] = useState(false);
   const [campaignDetailsOpen, setCampaignDetailsOpen] = useState(false);
   const [campaignReportOpen, setCampaignReportOpen] = useState(false);
-  const [selectedCampaign, setSelectedCampaign] = useState<any>(null);
+  const [selectedCampaign, setSelectedCampaign] = useState<SelectedCampaignDetails | null>(null);
   const [selectedCampaignForReport, setSelectedCampaignForReport] = useState<string | null>(null);
 
   // Data states
   const [activeCampaigns, setActiveCampaigns] = useState<Campaign[]>([]);
   const [recentCampaigns, setRecentCampaigns] = useState<Campaign[]>([]);
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoadingActive, setIsLoadingActive] = useState(true);
   const [isLoadingRecent, setIsLoadingRecent] = useState(true);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
@@ -152,45 +237,6 @@ export default function DashboardPage(): React.ReactElement {
     fetchRecentCampaigns(false); // Don't show loading spinner on refresh
   };
 
-  function formatNumber(num: number): string {
-    return num.toLocaleString("pt-BR");
-  }
-
-  function getComparisonSubtitle(comparison: any): string {
-    if (!comparison) {
-      return "Total enviadas";
-    }
-
-    let arrow: string;
-    if (comparison.changePercent > 0) {
-      arrow = "↑";
-    } else if (comparison.changePercent < 0) {
-      arrow = "↓";
-    } else {
-      arrow = "→";
-    }
-
-    return `${arrow} ${Math.abs(comparison.changePercent)}% vs ontem`;
-  }
-
-  function getDeliveryTrend(rate: number): "up" | "neutral" | "down" {
-    if (rate >= 90) return "up";
-    if (rate >= 70) return "neutral";
-    return "down";
-  }
-
-  function getReadTrend(rate: number): "up" | "neutral" | "down" {
-    if (rate >= 50) return "up";
-    if (rate >= 30) return "neutral";
-    return "down";
-  }
-
-  function getFailureTrend(rate: number): "up" | "neutral" | "down" {
-    if (rate <= 5) return "up";
-    if (rate <= 10) return "neutral";
-    return "down";
-  }
-
   // Prepare stats cards data
   const statsCards = stats ? [
     {
@@ -222,37 +268,6 @@ export default function DashboardPage(): React.ReactElement {
       trend: getFailureTrend(stats.failed.rate),
     },
   ] : [];
-
-  function calculateProgress(campaign: Campaign): number {
-    if (campaign.totalContacts === 0) return 0;
-    return Math.round((campaign.sentCount / campaign.totalContacts) * 100);
-  }
-
-  function formatDate(dateString: string): string {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("pt-BR", { month: "short", day: "numeric" });
-  }
-
-  // Get trend color class
-  function getTrendColorClass(trend: string): string {
-    switch (trend) {
-      case "up":
-        return "text-green-600 dark:text-green-400";
-      case "down":
-        return "text-red-600 dark:text-red-400";
-      default:
-        return "text-gray-500 dark:text-gray-400";
-    }
-  }
-
-  function getStatusBadge(status: string) {
-    return CAMPAIGN_STATUS_CONFIG[status as CampaignStatusType] || {
-      color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-      label: status,
-      variant: "outline" as const,
-      icon: FileText
-    };
-  }
 
   return (
     <div className="space-y-6 md:space-y-8 p-4 md:p-0">
@@ -526,22 +541,28 @@ export default function DashboardPage(): React.ReactElement {
         </CardContent>
       </Card>
 
-      {/* Modals */}
-      <CampaignWizard
-        open={campaignWizardOpen}
-        onOpenChange={setCampaignWizardOpen}
-        onCampaignCreated={handleCampaignCreated}
-      />
-      <CampaignDetailsModal
-        open={campaignDetailsOpen}
-        onOpenChange={setCampaignDetailsOpen}
-        campaign={selectedCampaign}
-      />
-      <CampaignReportModal
-        open={campaignReportOpen}
-        onOpenChange={setCampaignReportOpen}
-        campaignId={selectedCampaignForReport}
-      />
+      {/* Modals - Conditionally render to avoid loading until needed */}
+      {campaignWizardOpen && (
+        <CampaignWizard
+          open={campaignWizardOpen}
+          onOpenChange={setCampaignWizardOpen}
+          onCampaignCreated={handleCampaignCreated}
+        />
+      )}
+      {campaignDetailsOpen && (
+        <CampaignDetailsModal
+          open={campaignDetailsOpen}
+          onOpenChange={setCampaignDetailsOpen}
+          campaign={selectedCampaign}
+        />
+      )}
+      {campaignReportOpen && (
+        <CampaignReportModal
+          open={campaignReportOpen}
+          onOpenChange={setCampaignReportOpen}
+          campaignId={selectedCampaignForReport}
+        />
+      )}
     </div>
   );
 }

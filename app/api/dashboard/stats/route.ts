@@ -43,64 +43,7 @@ function getDateFilter(period: Period): { gte: Date } | undefined {
   }
 }
 
-async function getYesterdayComparison(period: Period, totalSent: number): Promise<ComparisonData | null> {
-  if (period !== "today") {
-    return null;
-  }
-
-  const now = new Date();
-  const yesterday = new Date(now);
-  yesterday.setDate(now.getDate() - 1);
-  const startOfYesterday = new Date(yesterday.setHours(0, 0, 0, 0));
-  const endOfYesterday = new Date(yesterday.setHours(23, 59, 59, 999));
-
-  const yesterdayCounts = await getPrisma().message.groupBy({
-    by: ["status"],
-    where: {
-      sentAt: {
-        gte: startOfYesterday,
-        lte: endOfYesterday,
-      },
-    },
-    _count: {
-      status: true,
-    },
-  });
-
-  const yesterdayStats = yesterdayCounts.reduce(
-    (acc, item) => {
-      acc[item.status] = item._count.status;
-      return acc;
-    },
-    {} as Record<string, number>
-  );
-
-  const yesterdayTotal = (yesterdayStats.SENT || 0) +
-                         (yesterdayStats.DELIVERED || 0) +
-                         (yesterdayStats.READ || 0) +
-                         (yesterdayStats.FAILED || 0);
-
-  function calculateChangePercent(today: number, yesterday: number): number {
-    if (yesterday > 0) {
-      return Math.round(((today - yesterday) / yesterday) * 100);
-    }
-    return today > 0 ? 100 : 0;
-  }
-
-  function getTrend(changePercent: number): "up" | "down" | "neutral" {
-    if (changePercent > 0) return "up";
-    if (changePercent < 0) return "down";
-    return "neutral";
-  }
-
-  const changePercent = calculateChangePercent(totalSent, yesterdayTotal);
-
-  return {
-    yesterdayTotal,
-    changePercent,
-    trend: getTrend(changePercent),
-  };
-}
+// Removed getYesterdayComparison - now inlined in GET handler for better parallelization
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
@@ -109,14 +52,37 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     const dateFilter = getDateFilter(period);
 
-    // Get message counts by status for the period
-    const messageCounts = await getPrisma().message.groupBy({
-      by: ["status"],
-      where: dateFilter ? { sentAt: dateFilter } : undefined,
-      _count: {
-        status: true,
-      },
-    });
+    // Parallelize: Get today's counts and yesterday's counts simultaneously
+    const [messageCounts, yesterdayData] = await Promise.all([
+      getPrisma().message.groupBy({
+        by: ["status"],
+        where: dateFilter ? { sentAt: dateFilter } : undefined,
+        _count: {
+          status: true,
+        },
+      }),
+      // Fetch yesterday's data in parallel if period is "today"
+      period === "today" ? (async () => {
+        const now = new Date();
+        const yesterday = new Date(now);
+        yesterday.setDate(now.getDate() - 1);
+        const startOfYesterday = new Date(yesterday.setHours(0, 0, 0, 0));
+        const endOfYesterday = new Date(yesterday.setHours(23, 59, 59, 999));
+
+        return getPrisma().message.groupBy({
+          by: ["status"],
+          where: {
+            sentAt: {
+              gte: startOfYesterday,
+              lte: endOfYesterday,
+            },
+          },
+          _count: {
+            status: true,
+          },
+        });
+      })() : Promise.resolve(null),
+    ]);
 
     // Transform to a more usable format
     const statsByStatus = messageCounts.reduce(
@@ -141,7 +107,42 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const readRate = totalSent > 0 ? Math.round((totalRead / totalSent) * 100) : 0;
     const failureRate = totalSent > 0 ? Math.round((totalFailed / totalSent) * 100) : 0;
 
-    const comparison = await getYesterdayComparison(period, totalSent);
+    // Calculate comparison from already-fetched yesterday data
+    const comparison = yesterdayData ? (() => {
+      const yesterdayStats = yesterdayData.reduce(
+        (acc, item) => {
+          acc[item.status] = item._count.status;
+          return acc;
+        },
+        {} as Record<string, number>
+      );
+
+      const yesterdayTotal = (yesterdayStats.SENT || 0) +
+                             (yesterdayStats.DELIVERED || 0) +
+                             (yesterdayStats.READ || 0) +
+                             (yesterdayStats.FAILED || 0);
+
+      function calculateChangePercent(today: number, yesterday: number): number {
+        if (yesterday > 0) {
+          return Math.round(((today - yesterday) / yesterday) * 100);
+        }
+        return today > 0 ? 100 : 0;
+      }
+
+      function getTrend(changePercent: number): "up" | "down" | "neutral" {
+        if (changePercent > 0) return "up";
+        if (changePercent < 0) return "down";
+        return "neutral";
+      }
+
+      const changePercent = calculateChangePercent(totalSent, yesterdayTotal);
+
+      return {
+        yesterdayTotal,
+        changePercent,
+        trend: getTrend(changePercent),
+      };
+    })() : null;
 
     return NextResponse.json({
       success: true,

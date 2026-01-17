@@ -44,6 +44,20 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+  --animate-flip: flip 6s infinite steps(2, end);
+  --animate-rotate: rotate 8s linear infinite both;
+  --color-success-foreground: var(----success-foreground);
+  --color-success: var(----success);
+  @keyframes flip {
+  to {
+    transform: rotate(360deg);
+    }
+  }
+  @keyframes rotate {
+  to {
+    transform: rotate(90deg);
+    }
+  }
 }
 
 :root {
@@ -79,6 +93,8 @@
   --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
   --sidebar-border: oklch(0.929 0.013 255.508);
   --sidebar-ring: oklch(0.704 0.04 256.788);
+  --success: hsl(142.1 70.6% 45.3%);
+  --success-foreground: hsl(0 0% 100%);
 }
 
 .dark {
@@ -121,5 +137,11 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .bg-gradient-radial {
+    background-image: radial-gradient(var(--tw-gradient-stops));
   }
 }

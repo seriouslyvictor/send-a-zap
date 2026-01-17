@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Button } from "@/components/ui/button";
+import { SaveButton } from "@/components/ui/save-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -10,11 +10,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { XCircle, Loader2, Power, CheckCircle2 } from "lucide-react";
+import { Loader2, Power } from "lucide-react";
 
 interface ConnectionStatusProps {
   onConnectClick: () => void;
   refreshTrigger?: number; // Increment this to trigger a refresh
+  cancelTrigger?: number; // Increment this to cancel connection attempt
 }
 
 interface ConnectionData {
@@ -26,7 +27,7 @@ interface ConnectionData {
   owner?: string;
 }
 
-export function ConnectionStatus({ onConnectClick, refreshTrigger }: ConnectionStatusProps) {
+export function ConnectionStatus({ onConnectClick, refreshTrigger, cancelTrigger }: ConnectionStatusProps) {
   const [connectionData, setConnectionData] = useState<ConnectionData>({
     connected: false,
     status: "checking",
@@ -35,6 +36,8 @@ export function ConnectionStatus({ onConnectClick, refreshTrigger }: ConnectionS
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const pollingInterval = useRef<NodeJS.Timeout | null>(null);
   const isMounted = useRef(true);
+  const connectionPromiseResolve = useRef<(() => void) | null>(null);
+  const connectionPromiseReject = useRef<((reason?: Error) => void) | null>(null);
 
   // Fetch connection status
   const checkStatus = async () => {
@@ -56,6 +59,12 @@ export function ConnectionStatus({ onConnectClick, refreshTrigger }: ConnectionS
           instanceName: data.instanceName,
           owner: data.owner,
         });
+
+        // If we just connected and there's a pending connection promise, resolve it
+        if (data.connected && connectionPromiseResolve.current) {
+          connectionPromiseResolve.current();
+          connectionPromiseResolve.current = null;
+        }
       } else {
         console.log("[ConnectionStatus] API returned success: false", data.error);
         setConnectionData({
@@ -99,6 +108,12 @@ export function ConnectionStatus({ onConnectClick, refreshTrigger }: ConnectionS
     return () => {
       isMounted.current = false;
       stopPolling();
+      // Cleanup pending connection promises to prevent memory leaks
+      if (connectionPromiseReject.current) {
+        connectionPromiseReject.current(new Error("Component unmounted"));
+        connectionPromiseReject.current = null;
+        connectionPromiseResolve.current = null;
+      }
     };
   }, []);
 
@@ -108,6 +123,18 @@ export function ConnectionStatus({ onConnectClick, refreshTrigger }: ConnectionS
       checkStatus();
     }
   }, [refreshTrigger]);
+
+  // Cancel connection attempt when modal is closed
+  useEffect(() => {
+    if (cancelTrigger !== undefined && cancelTrigger > 0) {
+      console.log("[ConnectionStatus] Cancel triggered");
+      if (connectionPromiseReject.current) {
+        connectionPromiseReject.current(new Error("Connection cancelled by user"));
+        connectionPromiseReject.current = null;
+        connectionPromiseResolve.current = null;
+      }
+    }
+  }, [cancelTrigger]);
 
   // Handle disconnect
   const handleDisconnect = async () => {
@@ -157,16 +184,31 @@ export function ConnectionStatus({ onConnectClick, refreshTrigger }: ConnectionS
     );
   }
 
+  // Handle connect button click - returns a Promise that resolves when connected
+  const handleConnectClick = async () => {
+    // Open the modal
+    onConnectClick();
+
+    // Return a Promise that resolves when connection is established, or rejects if cancelled
+    return new Promise<void>((resolve, reject) => {
+      connectionPromiseResolve.current = resolve;
+      connectionPromiseReject.current = reject;
+    });
+  };
+
   // Disconnected state - Show prominent connect button
   if (!connectionData.connected) {
     return (
-        <Button
-          onClick={onConnectClick}
-          className="bg-green-600 hover:bg-green-700 text-white font-semibold px-6"
-        >
-          <CheckCircle2 className="h-4 w-4 mr-2" />
-          Connect WhatsApp
-        </Button>
+        <SaveButton
+          text={{
+            idle: "Conectar Whatsapp",
+            saving: "Conectando...",
+            saved: "Conectado!"
+          }}
+          onSave={handleConnectClick}
+          enableConfetti={false}
+          className="px-6"
+        />
     );
   }
 

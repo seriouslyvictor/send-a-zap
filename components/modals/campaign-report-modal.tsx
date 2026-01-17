@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, MailIcon, CheckIcon, ListCheckIcon, CrossIcon } from "lucide-react";
+import { Loader2, MailIcon, CheckIcon, ListCheckIcon, CrossIcon, Check, X } from "lucide-react";
 import { CAMPAIGN_STATUS_CONFIG, CampaignStatusType } from "@/types/campaign";
 
 interface Message {
@@ -135,6 +135,21 @@ export function CampaignReportModal({
       hour: "2-digit",
       minute: "2-digit",
     });
+  }
+
+  function renderStatusIcon(dateString: string | null): React.ReactElement {
+    if (dateString) {
+      return (
+        <span title={formatDateTime(dateString)} className="inline-flex items-center justify-center">
+          <Check className="w-5 h-5 text-green-600 dark:text-green-400" />
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center justify-center">
+        <X className="w-5 h-5 text-gray-300 dark:text-gray-600" />
+      </span>
+    );
   }
 
   return (
@@ -278,10 +293,10 @@ export function CampaignReportModal({
                       <TableHead className="whitespace-nowrap">Telefone</TableHead>
                       <TableHead className="whitespace-nowrap">Nome</TableHead>
                       <TableHead className="whitespace-nowrap">Status</TableHead>
-                      <TableHead className="whitespace-nowrap">Enviada</TableHead>
-                      <TableHead className="whitespace-nowrap">Entregue</TableHead>
-                      <TableHead className="whitespace-nowrap">Lida</TableHead>
-                      <TableHead className="whitespace-nowrap">Erro</TableHead>
+                      <TableHead className="whitespace-nowrap text-center">Enviada</TableHead>
+                      <TableHead className="whitespace-nowrap text-center">Entregue</TableHead>
+                      <TableHead className="whitespace-nowrap text-center">Lida</TableHead>
+                      <TableHead className="whitespace-nowrap text-center">Sem Erro</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -305,22 +320,24 @@ export function CampaignReportModal({
                                 {statusBadge.label}
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-sm text-gray-600">
-                              {formatDateTime(message.sentAt)}
+                            <TableCell className="text-center">
+                              {renderStatusIcon(message.sentAt)}
                             </TableCell>
-                            <TableCell className="text-sm text-gray-600">
-                              {formatDateTime(message.deliveredAt)}
+                            <TableCell className="text-center">
+                              {renderStatusIcon(message.deliveredAt)}
                             </TableCell>
-                            <TableCell className="text-sm text-gray-600">
-                              {formatDateTime(message.readAt)}
+                            <TableCell className="text-center">
+                              {renderStatusIcon(message.readAt)}
                             </TableCell>
-                            <TableCell className="text-sm text-red-600">
+                            <TableCell className="text-center">
                               {message.errorMessage ? (
-                                <span title={message.errorMessage}>
-                                  {message.errorMessage.substring(0, 30)}...
+                                <span title={message.errorMessage} className="inline-flex items-center justify-center">
+                                  <X className="w-5 h-5 text-red-600 dark:text-red-400" />
                                 </span>
                               ) : (
-                                "-"
+                                <span className="inline-flex items-center justify-center">
+                                  <Check className="w-5 h-5 text-green-600 dark:text-green-400" />
+                                </span>
                               )}
                             </TableCell>
                           </TableRow>
