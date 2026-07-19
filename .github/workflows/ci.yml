@@ -64,8 +64,7 @@ jobs:
         run: npx prisma migrate deploy
 
       - name: Type check
-        run: npm run typecheck || true
-        continue-on-error: true
+        run: npm run typecheck
 
       - name: Lint
         run: npm run lint
