@@ -141,6 +141,15 @@ export async function GET() {
     if (!stored) {
       return NextResponse.json({ success: false, error: "Connection not created" }, { status: 404 });
     }
+    const status = await getEvolutionAPI().getConnectionStatus(stored);
+    if (status.connected) {
+      return NextResponse.json({
+        success: true,
+        alreadyConnected: true,
+        owner: status.jid,
+        profileName: status.profileName,
+      });
+    }
     return NextResponse.json({ success: true, qrCode: await qrImage(stored), pairingCode: null });
   } catch (error) {
     return NextResponse.json(

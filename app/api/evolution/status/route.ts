@@ -21,6 +21,7 @@ export async function GET() {
       status: status.status ?? (status.connected ? "open" : "close"),
       state: status.status,
       owner: status.jid,
+      profileName: status.profileName,
     });
   } catch (error) {
     return NextResponse.json(

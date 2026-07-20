@@ -19,6 +19,7 @@ export interface EvolutionQRCode {
 export interface EvolutionConnectionStatus {
   connected: boolean;
   jid?: string;
+  profileName?: string;
   status?: string;
 }
 
@@ -211,11 +212,29 @@ export class EvolutionAPI {
     const root = record(payload);
     const data = record(root.data);
     const status = text(data.status ?? root.status);
-    const connectedValue = data.connected ?? root.connected;
+    const transportConnected = data.Connected ?? root.Connected;
+    const loggedIn = data.LoggedIn ?? root.LoggedIn;
+    const legacyConnected = data.connected ?? root.connected;
+    const connected =
+      typeof loggedIn === "boolean"
+        ? transportConnected === true && loggedIn
+        : legacyConnected === true || status === "open" || status === "connected";
+    const name = text(data.Name ?? root.Name);
+    const jid = text(
+      data.JID ??
+        data.Jid ??
+        data.jid ??
+        data.myJid ??
+        root.JID ??
+        root.Jid ??
+        root.jid ??
+        root.myJid,
+    );
     return {
-      connected: connectedValue === true || status === "open" || status === "connected",
-      jid: text(data.jid ?? root.jid),
-      status,
+      connected,
+      ...(jid ? { jid } : {}),
+      ...(name ? { profileName: name } : {}),
+      status: status ?? (connected ? "connected" : "close"),
     };
   }
 

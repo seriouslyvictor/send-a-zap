@@ -76,7 +76,16 @@ describe("EvolutionAPI", () => {
         }),
       )
       .mockResolvedValueOnce(jsonResponse({ data: { pairingCode: "1234-5678" } }))
-      .mockResolvedValueOnce(jsonResponse({ data: { connected: true, jid: "551199@s.whatsapp.net" } }));
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            Connected: true,
+            LoggedIn: true,
+            Name: "Operator",
+            JID: "551199@s.whatsapp.net",
+          },
+        }),
+      );
     const api = new EvolutionAPI("http://evolution.test", "admin-key", fetch);
 
     await api.connectInstance(connection, {
@@ -93,6 +102,8 @@ describe("EvolutionAPI", () => {
     await expect(api.getConnectionStatus(connection)).resolves.toEqual({
       connected: true,
       jid: "551199@s.whatsapp.net",
+      profileName: "Operator",
+      status: "connected",
     });
 
     const scopedHeaders = {
@@ -167,6 +178,24 @@ describe("EvolutionAPI", () => {
     expect(fetch).toHaveBeenCalledWith("http://evolution.test/instance/all", {
       method: "GET",
       headers: { apikey: "admin-key" },
+    });
+  });
+
+  it("does not treat a connected transport as an authenticated Connection", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+      jsonResponse({
+        data: {
+          Connected: true,
+          LoggedIn: false,
+          Name: "",
+        },
+      }),
+    );
+    const api = new EvolutionAPI("http://evolution.test", "admin-key", fetch);
+
+    await expect(api.getConnectionStatus(connection)).resolves.toEqual({
+      connected: false,
+      status: "close",
     });
   });
 });

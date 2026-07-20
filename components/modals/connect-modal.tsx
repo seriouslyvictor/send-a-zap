@@ -5,6 +5,10 @@ import { AlertTriangle, CheckCircle2, Clock3, Loader2, RefreshCw } from "lucide-
 
 import { connectionDisplayNumber } from "@/lib/connection-display";
 import {
+  evolutionConnectionRequest,
+  type EvolutionConnectionRequestKind,
+} from "@/lib/evolution-connection-request";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -34,17 +38,16 @@ export function ConnectModal({ open, onOpenChange, onConnected }: ConnectModalPr
   const [error, setError] = useState<string | null>(null);
   const connectedRef = useRef(false);
 
-  const loadQRCode = useCallback(async () => {
+  const requestQRCode = useCallback(async (kind: EvolutionConnectionRequestKind) => {
     setIsLoading(true);
     setError(null);
     setStatus("Generating a secure QR code…");
 
     try {
-      const response = await fetch("/api/evolution/connect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ consent: true }),
-      });
+      const response = await fetch(
+        "/api/evolution/connect",
+        evolutionConnectionRequest(kind),
+      );
       const data = await response.json();
       if (!response.ok || !data.success) {
         throw new Error(data.error || "Could not create Connection");
@@ -107,21 +110,24 @@ export function ConnectModal({ open, onOpenChange, onConnected }: ConnectModalPr
     if (!open || step !== "pairing" || isConnected) return;
 
     const statusTimer = window.setInterval(() => void checkStatus(), STATUS_POLL_MS);
-    const qrTimer = window.setInterval(() => void loadQRCode(), QR_REFRESH_MS);
+    const qrTimer = window.setInterval(
+      () => void requestQRCode("refresh"),
+      QR_REFRESH_MS,
+    );
     return () => {
       window.clearInterval(statusTimer);
       window.clearInterval(qrTimer);
     };
-  }, [checkStatus, isConnected, loadQRCode, open, step]);
+  }, [checkStatus, isConnected, open, requestQRCode, step]);
 
   async function acceptAndConnect() {
     setStep("pairing");
-    await loadQRCode();
+    await requestQRCode("start");
   }
 
   function refreshQRCode() {
     setQrCode(null);
-    void loadQRCode();
+    void requestQRCode("refresh");
   }
 
   return (
