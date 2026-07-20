@@ -2,6 +2,7 @@
   "name": "whatsapp9002",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@11.13.0",
   "scripts": {
     "dev": "next dev",
     "dev:webpack": "next dev --no-turbopack",
@@ -39,8 +40,8 @@
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
     "@lordicon/react": "^1.11.0",
-    "@prisma/adapter-pg": "^7.2.0",
-    "@prisma/client": "^7.2.0",
+    "@prisma/adapter-pg": "7.2.0",
+    "@prisma/client": "7.2.0",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-avatar": "^1.1.11",
     "@radix-ui/react-checkbox": "^1.3.3",
@@ -67,7 +68,7 @@
     "next": "16.1.1",
     "next-themes": "^0.4.6",
     "pg": "^8.13.1",
-    "prisma": "^7.2.0",
+    "prisma": "7.2.0",
     "qrcode": "^1.5.4",
     "react": "19.2.3",
     "react-day-picker": "^9.13.0",
