@@ -23,12 +23,27 @@ export interface EvolutionConnectionStatus {
   status?: string;
 }
 
-export interface SendTextOptions {
-  messageId?: string;
-}
-
 type Fetch = typeof globalThis.fetch;
 type RandomUUID = () => string;
+type RandomBytes = (length: number) => Uint8Array;
+type MessageIdFactory = () => string;
+export type PersistProviderMessageId = (messageId: string) => Promise<void>;
+
+const EVOLUTION_MESSAGE_ID_PATTERN = /^3EB0[0-9A-F]{18}$/;
+
+function secureRandomBytes(length: number): Uint8Array {
+  return crypto.getRandomValues(new Uint8Array(length));
+}
+
+export function createEvolutionMessageId(
+  randomBytes: RandomBytes = secureRandomBytes,
+): string {
+  return `3EB0${Array.from(randomBytes(9), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  )
+    .join("")
+    .toUpperCase()}`;
+}
 
 export class EvolutionAPIError extends Error {
   constructor(
@@ -74,12 +89,19 @@ export class EvolutionAPI {
   private readonly baseUrl: string;
   private readonly adminKey: string;
   private readonly fetch: Fetch;
+  private readonly createMessageId: MessageIdFactory;
 
-  constructor(baseUrl?: string, adminKey?: string, fetchImpl: Fetch = globalThis.fetch) {
+  constructor(
+    baseUrl?: string,
+    adminKey?: string,
+    fetchImpl: Fetch = globalThis.fetch,
+    messageIdFactory: MessageIdFactory = createEvolutionMessageId,
+  ) {
     this.baseUrl = (baseUrl || process.env.EVOLUTION_API_URL || "").replace(/\/+$/, "");
     this.adminKey =
       adminKey || process.env.EVOLUTION_GLOBAL_API_KEY || process.env.EVOLUTION_API_KEY || "";
     this.fetch = fetchImpl;
+    this.createMessageId = messageIdFactory;
 
     if (!this.baseUrl || !this.adminKey) {
       throw new Error(
@@ -242,11 +264,11 @@ export class EvolutionAPI {
     };
   }
 
-  async sendText(
+  private async sendText(
     connection: EvolutionConnection,
     number: string,
     message: string,
-    options: SendTextOptions = {},
+    messageId?: string,
   ): Promise<string> {
     const payload = await this.request<unknown>(
       "/send/text",
@@ -255,7 +277,7 @@ export class EvolutionAPI {
         body: JSON.stringify({
           number,
           text: message,
-          ...(options.messageId ? { id: options.messageId } : {}),
+          ...(messageId ? { id: messageId } : {}),
         }),
       },
       connection,
@@ -263,11 +285,39 @@ export class EvolutionAPI {
     const root = record(payload);
     const data = record(root.data);
     const info = record(data.Info ?? data.info);
-    const messageId = text(info.ID ?? info.id ?? data.messageId ?? root.messageId);
-    if (!messageId) {
+    const returnedMessageId = text(info.ID ?? info.id ?? data.messageId ?? root.messageId);
+    if (!returnedMessageId) {
       throw new Error("Evolution Go send response did not include data.Info.ID");
     }
-    return messageId;
+    return returnedMessageId;
+  }
+
+  async sendTrackedText(
+    connection: EvolutionConnection,
+    number: string,
+    message: string,
+    persistProviderMessageId: PersistProviderMessageId,
+  ): Promise<string> {
+    const messageId = this.createMessageId();
+    if (!EVOLUTION_MESSAGE_ID_PATTERN.test(messageId)) {
+      throw new Error("Evolution message id factory returned an invalid WhatsApp message id");
+    }
+    await persistProviderMessageId(messageId);
+    const returnedMessageId = await this.sendText(connection, number, message, messageId);
+    if (returnedMessageId !== messageId) {
+      throw new Error(
+        `Evolution Go returned message id ${returnedMessageId} instead of preassigned id ${messageId}`,
+      );
+    }
+    return returnedMessageId;
+  }
+
+  async sendUntrackedText(
+    connection: EvolutionConnection,
+    number: string,
+    message: string,
+  ): Promise<string> {
+    return this.sendText(connection, number, message);
   }
 
   async checkHealth(): Promise<boolean> {

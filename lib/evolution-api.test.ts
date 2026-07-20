@@ -4,6 +4,7 @@ import {
   EvolutionAPI,
   assertDemoInstanceTarget,
   createDemoInstanceName,
+  createEvolutionMessageId,
   type EvolutionConnection,
 } from "./evolution-api";
 
@@ -131,13 +132,13 @@ describe("EvolutionAPI", () => {
     ]);
   });
 
-  it("sends text with scoped credentials and returns the sent message id", async () => {
+  it("sends explicitly untracked text with scoped credentials", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
       jsonResponse({ data: { Info: { ID: "sent-message-id" } } }),
     );
     const api = new EvolutionAPI("http://evolution.test", "admin-key", fetch);
 
-    await expect(api.sendText(connection, "5511999999999", "Oi!")).resolves.toBe(
+    await expect(api.sendUntrackedText(connection, "5511999999999", "Oi!")).resolves.toBe(
       "sent-message-id",
     );
     expect(fetch).toHaveBeenCalledWith("http://evolution.test/send/text", {
@@ -151,17 +152,25 @@ describe("EvolutionAPI", () => {
     });
   });
 
-  it("sends text with a caller-assigned id so the Message exists before the webhook", async () => {
-    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
-      jsonResponse({ data: { Info: { ID: "preassigned-message-id" } } }),
+  it("persists the provider id before sending tracked text", async () => {
+    const order: string[] = [];
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async () => {
+      order.push("fetch");
+      return jsonResponse({ data: { Info: { ID: "3EB00123456789ABCDEF01" } } });
+    });
+    const api = new EvolutionAPI(
+      "http://evolution.test",
+      "admin-key",
+      fetch,
+      () => "3EB00123456789ABCDEF01",
     );
-    const api = new EvolutionAPI("http://evolution.test", "admin-key", fetch);
 
     await expect(
-      api.sendText(connection, "5511999999999", "Oi!", {
-        messageId: "preassigned-message-id",
+      api.sendTrackedText(connection, "5511999999999", "Oi!", async (messageId) => {
+        order.push(`persist:${messageId}`);
       }),
-    ).resolves.toBe("preassigned-message-id");
+    ).resolves.toBe("3EB00123456789ABCDEF01");
+    expect(order).toEqual(["persist:3EB00123456789ABCDEF01", "fetch"]);
     expect(fetch).toHaveBeenCalledWith("http://evolution.test/send/text", {
       method: "POST",
       headers: {
@@ -172,9 +181,61 @@ describe("EvolutionAPI", () => {
       body: JSON.stringify({
         number: "5511999999999",
         text: "Oi!",
-        id: "preassigned-message-id",
+        id: "3EB00123456789ABCDEF01",
       }),
     });
+  });
+
+  it("fails tracked sends when Evolution returns a different provider id", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+      jsonResponse({ data: { Info: { ID: "3EB0FFFFFFFFFFFFFFFFFF" } } }),
+    );
+    const api = new EvolutionAPI(
+      "http://evolution.test",
+      "admin-key",
+      fetch,
+      () => "3EB00123456789ABCDEF01",
+    );
+
+    await expect(
+      api.sendTrackedText(connection, "5511999999999", "Oi!", async () => undefined),
+    ).rejects.toThrow(
+      "Evolution Go returned message id 3EB0FFFFFFFFFFFFFFFFFF instead of preassigned id 3EB00123456789ABCDEF01",
+    );
+  });
+
+  it("does not send tracked text when provider-id persistence fails", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>();
+    const api = new EvolutionAPI(
+      "http://evolution.test",
+      "admin-key",
+      fetch,
+      () => "3EB00123456789ABCDEF01",
+    );
+
+    await expect(
+      api.sendTrackedText(connection, "5511999999999", "Oi!", async () => {
+        throw new Error("database unavailable");
+      }),
+    ).rejects.toThrow("database unavailable");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-WhatsMeow id before persistence or sending", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>();
+    const persist = vi.fn(async () => undefined);
+    const api = new EvolutionAPI(
+      "http://evolution.test",
+      "admin-key",
+      fetch,
+      () => "arbitrary-id",
+    );
+
+    await expect(
+      api.sendTrackedText(connection, "5511999999999", "Oi!", persist),
+    ).rejects.toThrow("invalid WhatsApp message id");
+    expect(persist).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("checks process health without sending either credential", async () => {
@@ -252,5 +313,15 @@ describe("createDemoInstanceName", () => {
     expect(createDemoInstanceName(() => "550e8400-e29b-41d4-a716-446655440000")).toBe(
       "send-a-zap-550e8400-e29b-41d4-a716-446655440000",
     );
+  });
+});
+
+describe("createEvolutionMessageId", () => {
+  it("uses WhatsMeow's 3EB0 prefix with nine uppercase hexadecimal bytes", () => {
+    expect(
+      createEvolutionMessageId(() =>
+        Uint8Array.from([0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88]),
+      ),
+    ).toBe("3EB0001122334455667788");
   });
 });
