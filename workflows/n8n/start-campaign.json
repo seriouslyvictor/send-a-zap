@@ -1,0 +1,378 @@
+[
+  {
+    "updatedAt": "2026-07-20T04:56:21.293Z",
+    "createdAt": "2026-07-20T04:27:22.064Z",
+    "id": "eHL6zWcQPr0CUQ1a",
+    "name": "Start Campaign",
+    "description": "Webhook API that atomically initializes a Campaign, dispatches the runner asynchronously, and returns structured success or failure responses to Next.js.",
+    "active": true,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "campaign/start",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "e5ca867a-a7e7-4093-b850-87c1b586eca0",
+        "name": "Start Campaign Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2.1,
+        "position": [
+          240,
+          304
+        ],
+        "webhookId": "06afd6db-a146-46b0-a75c-c9b7326b5357"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://nextjs:3000/api/n8n/campaigns/initialize",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ { \"campaignId\": $(\"Start Campaign Webhook\").item.json.body.campaignId, \"executionId\": $execution.id } }}",
+          "options": {
+            "response": {
+              "response": {
+                "fullResponse": true,
+                "neverError": true,
+                "responseFormat": "json"
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "0c71de23-70ea-4f1a-9cd9-a3ce36206da9",
+        "name": "Initialize Campaign",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          544,
+          304
+        ],
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 5000,
+        "onError": "continueErrorOutput"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "combinator": "and",
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "leftValue": "={{ $(\"Initialize Campaign\").item.json.statusCode }}",
+                "rightValue": 200,
+                "operator": {
+                  "type": "number",
+                  "operation": "equals"
+                }
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "5014644e-c918-477b-860c-98d529e70d36",
+        "name": "Initialization Succeeded",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          848,
+          304
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { \"success\": true, \"campaignId\": $(\"Start Campaign Webhook\").item.json.body.campaignId, \"status\": \"RUNNING\" } }}",
+          "options": {
+            "responseCode": 202
+          }
+        },
+        "id": "be3b7910-680a-4ac6-90f7-9d393bee8d75",
+        "name": "Respond Started",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.5,
+        "position": [
+          1440,
+          192
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://nextjs:3000/api/n8n/campaigns/fail",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ { \"campaignId\": $(\"Start Campaign Webhook\").item.json.body.campaignId, \"errorMessage\": $(\"Dispatch Campaign Runner\").item.json.error?.message ?? \"Runner dispatch failed\" } }}",
+          "options": {
+            "response": {
+              "response": {
+                "neverError": true,
+                "responseFormat": "json"
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "c3dbb389-eb6b-4192-adfb-0f89df815fd6",
+        "name": "Record Dispatch Failure",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          1440,
+          352
+        ],
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 5000,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": {
+            "error": "dispatch_failed",
+            "message": "Campaign runner could not be started"
+          },
+          "options": {
+            "responseCode": 500
+          }
+        },
+        "id": "3e7b0965-b05c-4695-be27-ee1160e30e29",
+        "name": "Respond Dispatch Failed",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.5,
+        "position": [
+          1744,
+          352
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $(\"Initialize Campaign\").item.json.body }}",
+          "options": {
+            "responseCode": "={{ $(\"Initialize Campaign\").item.json.statusCode ?? 500 }}"
+          }
+        },
+        "id": "69f393a6-f610-4563-a0df-831e5f84b6fb",
+        "name": "Respond Rejected",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.5,
+        "position": [
+          1152,
+          416
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": {
+            "error": "service_unavailable",
+            "message": "Campaign initialization service is unavailable"
+          },
+          "options": {
+            "responseCode": 503
+          }
+        },
+        "id": "b0adfdda-67c0-4bac-b2ee-a334d6badfd2",
+        "name": "Respond Unavailable",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.5,
+        "position": [
+          848,
+          544
+        ]
+      },
+      {
+        "parameters": {
+          "content": "## One responsibility\nAccept the app start/resume command, initialize the Campaign atomically, dispatch the long-running runner, and return an explicit HTTP result. This workflow never sends a Message itself.",
+          "height": 560,
+          "width": 1800,
+          "color": 6
+        },
+        "id": "30524f47-8528-4c35-9146-9cae8cfe85a8",
+        "name": "Sticky Note 0eea2559",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          208,
+          80
+        ]
+      },
+      {
+        "id": "94f264fe-2975-47c8-9af0-814c98d50529",
+        "name": "Dispatch Campaign Runner",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          1152,
+          224
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "http://n8n:5678/webhook/campaign/run",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ { \"campaignId\": $(\"Initialize Campaign\").item.json.body.campaignId } }}",
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "json"
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "onError": "continueErrorOutput",
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000
+      }
+    ],
+    "connections": {
+      "Start Campaign Webhook": {
+        "main": [
+          [
+            {
+              "node": "Initialize Campaign",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Initialize Campaign": {
+        "main": [
+          [
+            {
+              "node": "Initialization Succeeded",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Respond Unavailable",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Initialization Succeeded": {
+        "main": [
+          [
+            {
+              "node": "Dispatch Campaign Runner",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Respond Rejected",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Record Dispatch Failure": {
+        "main": [
+          [
+            {
+              "node": "Respond Dispatch Failed",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Dispatch Campaign Runner": {
+        "main": [
+          [
+            {
+              "node": "Respond Started",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Record Dispatch Failure",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "availableInMCP": true,
+      "binaryMode": "separate",
+      "timezone": "America/Sao_Paulo",
+      "executionTimeout": 300,
+      "errorWorkflow": "Iy4k3zdS7i9RBMvr"
+    },
+    "staticData": null,
+    "meta": {
+      "aiBuilderAssisted": true,
+      "builderVariant": "mcp"
+    },
+    "nodeGroups": [],
+    "pinData": {},
+    "versionId": "0130e82a-5eca-429a-a8ed-161625fe9547",
+    "activeVersionId": "0130e82a-5eca-429a-a8ed-161625fe9547",
+    "versionCounter": 6,
+    "triggerCount": 1,
+    "sourceWorkflowId": null,
+    "tags": [
+      {
+        "updatedAt": "2026-07-20T04:31:46.674Z",
+        "createdAt": "2026-07-20T04:31:46.674Z",
+        "id": "8gcQj2uMPNMkmsC2",
+        "name": "campaign"
+      },
+      {
+        "updatedAt": "2026-07-20T04:34:45.974Z",
+        "createdAt": "2026-07-20T04:34:45.974Z",
+        "id": "Am09nkqmjmMRPuOX",
+        "name": "webhook"
+      }
+    ],
+    "shared": [
+      {
+        "updatedAt": "2026-07-20T04:27:22.064Z",
+        "createdAt": "2026-07-20T04:27:22.064Z",
+        "role": "workflow:owner",
+        "workflowId": "eHL6zWcQPr0CUQ1a",
+        "projectId": "AOSsJTWmOhH0QjvP",
+        "project": {
+          "updatedAt": "2026-07-19T23:05:57.329Z",
+          "createdAt": "2026-07-19T23:02:51.086Z",
+          "id": "AOSsJTWmOhH0QjvP",
+          "name": "Victor  Schiavo <schiavovictor@outlook.com>",
+          "type": "personal",
+          "icon": null,
+          "description": null,
+          "customTelemetryTags": [],
+          "creatorId": "0e3bd927-b68a-43a9-959a-2a65733b2f69"
+        }
+      }
+    ],
+    "versionMetadata": {
+      "name": null,
+      "description": null
+    }
+  }
+]

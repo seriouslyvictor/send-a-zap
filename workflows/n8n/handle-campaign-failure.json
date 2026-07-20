@@ -1,0 +1,181 @@
+[
+  {
+    "updatedAt": "2026-07-20T04:33:13.105Z",
+    "createdAt": "2026-07-20T04:25:56.065Z",
+    "id": "Iy4k3zdS7i9RBMvr",
+    "name": "Handle Campaign Failure",
+    "description": "Catches escaped campaign workflow errors and reconciles the associated RUNNING Campaign to FAILED using the runner execution ID.",
+    "active": true,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {},
+        "id": "0b071780-48e6-4cec-b7a0-58976915f72d",
+        "name": "Catch Campaign Failure",
+        "type": "n8n-nodes-base.errorTrigger",
+        "typeVersion": 1,
+        "position": [
+          240,
+          304
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://nextjs:3000/api/n8n/campaigns/fail",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ { \"executionId\": $(\"Catch Campaign Failure\").item.json.execution.id, \"errorMessage\": $(\"Catch Campaign Failure\").item.json.execution.error.message } }}",
+          "options": {
+            "response": {
+              "response": {
+                "neverError": true,
+                "responseFormat": "json"
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "b98c12d1-6c35-48a3-8b51-dcbe7850adc1",
+        "name": "Mark Campaign Failed",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          544,
+          304
+        ],
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 5000,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "executionId",
+                "name": "executionId",
+                "value": "={{ $(\"Catch Campaign Failure\").item.json.execution.id }}",
+                "type": "string"
+              },
+              {
+                "id": "state",
+                "name": "state",
+                "value": "={{ $(\"Mark Campaign Failed\").item.json.state ?? \"unrecorded\" }}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "0ff8c2b1-bd7f-4f09-a132-42eed6f1c900",
+        "name": "Return Failure Record",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          848,
+          304
+        ]
+      },
+      {
+        "parameters": {
+          "content": "## One responsibility\nCatch failures that escape campaign workflows and reconcile any RUNNING Campaign associated with the failed n8n execution. Per-node handlers remain the first line of defense.",
+          "height": 200,
+          "width": 900,
+          "color": 3
+        },
+        "id": "fc619cef-650a-4f25-a085-b4d074b4e56b",
+        "name": "Sticky Note 4bcb0a21",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          208,
+          144
+        ]
+      }
+    ],
+    "connections": {
+      "Catch Campaign Failure": {
+        "main": [
+          [
+            {
+              "node": "Mark Campaign Failed",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Mark Campaign Failed": {
+        "main": [
+          [
+            {
+              "node": "Return Failure Record",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "availableInMCP": true,
+      "timezone": "America/Sao_Paulo",
+      "saveDataErrorExecution": "all",
+      "executionTimeout": 300,
+      "binaryMode": "separate"
+    },
+    "staticData": null,
+    "meta": {
+      "aiBuilderAssisted": true,
+      "builderVariant": "mcp"
+    },
+    "nodeGroups": [],
+    "pinData": {},
+    "versionId": "bc82f8c7-3039-49ad-ab06-a8aa944fd8f0",
+    "activeVersionId": "bc82f8c7-3039-49ad-ab06-a8aa944fd8f0",
+    "versionCounter": 3,
+    "triggerCount": 0,
+    "sourceWorkflowId": null,
+    "tags": [
+      {
+        "updatedAt": "2026-07-20T04:31:46.674Z",
+        "createdAt": "2026-07-20T04:31:46.674Z",
+        "id": "8gcQj2uMPNMkmsC2",
+        "name": "campaign"
+      },
+      {
+        "updatedAt": "2026-07-20T04:31:55.531Z",
+        "createdAt": "2026-07-20T04:31:55.531Z",
+        "id": "E6fVfOf3huhKj7N9",
+        "name": "error-handler"
+      }
+    ],
+    "shared": [
+      {
+        "updatedAt": "2026-07-20T04:25:56.065Z",
+        "createdAt": "2026-07-20T04:25:56.065Z",
+        "role": "workflow:owner",
+        "workflowId": "Iy4k3zdS7i9RBMvr",
+        "projectId": "AOSsJTWmOhH0QjvP",
+        "project": {
+          "updatedAt": "2026-07-19T23:05:57.329Z",
+          "createdAt": "2026-07-19T23:02:51.086Z",
+          "id": "AOSsJTWmOhH0QjvP",
+          "name": "Victor  Schiavo <schiavovictor@outlook.com>",
+          "type": "personal",
+          "icon": null,
+          "description": null,
+          "customTelemetryTags": [],
+          "creatorId": "0e3bd927-b68a-43a9-959a-2a65733b2f69"
+        }
+      }
+    ],
+    "versionMetadata": {
+      "name": null,
+      "description": null
+    }
+  }
+]

@@ -1,0 +1,279 @@
+[
+  {
+    "updatedAt": "2026-07-20T04:35:29.708Z",
+    "createdAt": "2026-07-20T04:23:37.652Z",
+    "id": "elKt5R5Z9xYE5dIS",
+    "name": "Send Campaign Message",
+    "description": "Sends one claimed campaign Message through the server-side tracked Evolution Go seam, preserving provider-ID ordering and idempotent database updates.",
+    "active": true,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "workflowInputs": {
+            "values": [
+              {
+                "name": "messageId"
+              }
+            ]
+          }
+        },
+        "id": "1b0eab4c-6a29-4c49-8ccd-c3b71f68275d",
+        "name": "Receive Message",
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          240,
+          304
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://nextjs:3000/api/n8n/messages/send",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ { \"messageId\": $(\"Receive Message\").item.json.messageId } }}",
+          "options": {
+            "response": {
+              "response": {
+                "neverError": true,
+                "responseFormat": "json"
+              }
+            },
+            "timeout": 30000
+          }
+        },
+        "id": "ca44d5dd-ed7d-494a-b466-02f7a6c9360d",
+        "name": "Send Tracked Message",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          544,
+          304
+        ],
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 5000,
+        "onError": "continueErrorOutput"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "state",
+                "name": "state",
+                "value": "={{ $(\"Send Tracked Message\").item.json.state ?? \"failed\" }}",
+                "type": "string"
+              },
+              {
+                "id": "messageId",
+                "name": "messageId",
+                "value": "={{ $(\"Receive Message\").item.json.messageId }}",
+                "type": "string"
+              },
+              {
+                "id": "error",
+                "name": "error",
+                "value": "={{ $(\"Send Tracked Message\").item.json.error ?? \"\" }}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "2e402799-bd06-465e-a213-081b29926e94",
+        "name": "Return Send Result",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          848,
+          224
+        ]
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "state",
+                "name": "state",
+                "value": "failed",
+                "type": "string"
+              },
+              {
+                "id": "messageId",
+                "name": "messageId",
+                "value": "={{ $(\"Receive Message\").item.json.messageId }}",
+                "type": "string"
+              },
+              {
+                "id": "error",
+                "name": "error",
+                "value": "={{ $(\"Send Tracked Message\").item.json.error?.message ?? \"Internal API unavailable\" }}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "11b4dbc9-ca00-415e-a7f5-e647f56489cb",
+        "name": "Return Transport Failure",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          1152,
+          432
+        ]
+      },
+      {
+        "parameters": {
+          "content": "## One responsibility\nSend one already-claimed Message through the server-side tracked Evolution Go seam. The server owns provider credentials, preassigned IDs, and idempotent persistence.",
+          "height": 400,
+          "width": 900,
+          "color": 5
+        },
+        "id": "0003e9d5-0361-4ce3-9e85-3fefcbb7318b",
+        "name": "Sticky Note 224c912d",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          160,
+          96
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://nextjs:3000/api/n8n/messages/fail",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ { \"messageId\": $(\"Receive Message\").item.json.messageId, \"errorMessage\": $(\"Send Tracked Message\").item.json.error?.message ?? \"Internal API unavailable\" } }}",
+          "options": {
+            "response": {
+              "response": {
+                "neverError": true,
+                "responseFormat": "json"
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "c2bd9d6c-efcb-49e9-b7da-6cc273e872d0",
+        "name": "Record Transport Failure",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          848,
+          432
+        ],
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 5000,
+        "onError": "continueRegularOutput"
+      }
+    ],
+    "connections": {
+      "Receive Message": {
+        "main": [
+          [
+            {
+              "node": "Send Tracked Message",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Send Tracked Message": {
+        "main": [
+          [
+            {
+              "node": "Return Send Result",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Record Transport Failure",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Record Transport Failure": {
+        "main": [
+          [
+            {
+              "node": "Return Transport Failure",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "availableInMCP": true,
+      "binaryMode": "separate",
+      "timezone": "America/Sao_Paulo",
+      "executionTimeout": 300,
+      "callerPolicy": "workflowsFromSameOwner",
+      "errorWorkflow": "Iy4k3zdS7i9RBMvr"
+    },
+    "staticData": null,
+    "meta": {
+      "aiBuilderAssisted": true,
+      "builderVariant": "mcp"
+    },
+    "nodeGroups": [],
+    "pinData": {},
+    "versionId": "00e40614-8c7c-4970-928c-783cfa0958df",
+    "activeVersionId": "00e40614-8c7c-4970-928c-783cfa0958df",
+    "versionCounter": 5,
+    "triggerCount": 0,
+    "sourceWorkflowId": null,
+    "tags": [
+      {
+        "updatedAt": "2026-07-20T04:31:46.674Z",
+        "createdAt": "2026-07-20T04:31:46.674Z",
+        "id": "8gcQj2uMPNMkmsC2",
+        "name": "campaign"
+      },
+      {
+        "updatedAt": "2026-07-20T04:31:46.687Z",
+        "createdAt": "2026-07-20T04:31:46.687Z",
+        "id": "USazuP5NLKvhmsBD",
+        "name": "subworkflow"
+      }
+    ],
+    "shared": [
+      {
+        "updatedAt": "2026-07-20T04:23:37.652Z",
+        "createdAt": "2026-07-20T04:23:37.652Z",
+        "role": "workflow:owner",
+        "workflowId": "elKt5R5Z9xYE5dIS",
+        "projectId": "AOSsJTWmOhH0QjvP",
+        "project": {
+          "updatedAt": "2026-07-19T23:05:57.329Z",
+          "createdAt": "2026-07-19T23:02:51.086Z",
+          "id": "AOSsJTWmOhH0QjvP",
+          "name": "Victor  Schiavo <schiavovictor@outlook.com>",
+          "type": "personal",
+          "icon": null,
+          "description": null,
+          "customTelemetryTags": [],
+          "creatorId": "0e3bd927-b68a-43a9-959a-2a65733b2f69"
+        }
+      }
+    ],
+    "versionMetadata": {
+      "name": null,
+      "description": null
+    }
+  }
+]

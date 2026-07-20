@@ -1,0 +1,450 @@
+[
+  {
+    "updatedAt": "2026-07-20T04:53:11.752Z",
+    "createdAt": "2026-07-20T04:25:19.689Z",
+    "id": "Cy8wGgpsPfOWeEZw",
+    "name": "Run Campaign",
+    "description": "Webhook runner that serially claims and sends one Message at a time, checking pause/cancel before every send while Wait nodes enforce pacing and retries.",
+    "active": true,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://nextjs:3000/api/n8n/campaigns/claim",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ { \"campaignId\": $(\"Receive Campaign\").item.json.body.campaignId, \"executionId\": $execution.id } }}",
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "json"
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "46cff826-8a14-4704-9cfe-e1729357ace5",
+        "name": "Claim Next Message",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          544,
+          304
+        ],
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 5000,
+        "onError": "continueErrorOutput"
+      },
+      {
+        "parameters": {
+          "mode": "expression",
+          "numberOutputs": 3,
+          "output": "={{ $(\"Claim Next Message\").item.json.state === \"claimed\" ? 0 : ($(\"Claim Next Message\").item.json.state === \"waiting\" ? 1 : 2) }}"
+        },
+        "id": "82825f51-42e3-4889-978e-b098db50cc6f",
+        "name": "Route Claim State",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [
+          848,
+          304
+        ]
+      },
+      {
+        "parameters": {
+          "workflowId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "elKt5R5Z9xYE5dIS",
+            "cachedResultName": "Send Campaign Message"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "messageId": "={{ $(\"Claim Next Message\").item.json.messageId }}"
+            },
+            "schema": [
+              {
+                "id": "messageId",
+                "displayName": "messageId",
+                "required": true,
+                "type": "string",
+                "canBeUsedToMatch": false
+              }
+            ]
+          },
+          "options": {
+            "waitForSubWorkflow": true
+          }
+        },
+        "id": "c09e0a3b-6e41-4b35-965a-8db9f9f71acc",
+        "name": "Send Claimed Message",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.3,
+        "position": [
+          1152,
+          176
+        ],
+        "onError": "continueErrorOutput"
+      },
+      {
+        "parameters": {
+          "amount": "={{ Math.max(1, $(\"Claim Next Message\").item.json.postSendDelaySeconds) }}"
+        },
+        "id": "9ba0208a-3e55-4236-84d0-8a6a858f3b60",
+        "name": "Wait After Send",
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          1440,
+          192
+        ],
+        "webhookId": "1765bfec-6e29-4745-a40b-3e97bb7e3217"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://nextjs:3000/api/n8n/campaigns/fail",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ { \"campaignId\": $(\"Receive Campaign\").item.json.body.campaignId, \"errorMessage\": $(\"Claim Next Message\").item.json.error?.message ?? \"Campaign runner failed\" } }}",
+          "options": {
+            "response": {
+              "response": {
+                "neverError": true,
+                "responseFormat": "json"
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "3c2bda11-f3c9-43da-a882-1e78c220120b",
+        "name": "Record Runner Failure",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          848,
+          592
+        ],
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 5000,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "campaignId",
+                "name": "campaignId",
+                "value": "={{ $(\"Receive Campaign\").item.json.body.campaignId }}",
+                "type": "string"
+              },
+              {
+                "id": "state",
+                "name": "state",
+                "value": "failed",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "f2023470-7191-4b9b-9480-eb2b84325255",
+        "name": "Return Runner Failure",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          1152,
+          592
+        ]
+      },
+      {
+        "parameters": {
+          "amount": "={{ Math.max(1, $(\"Claim Next Message\").item.json.waitSeconds) }}"
+        },
+        "id": "f29e175a-7145-4849-8595-09358622c995",
+        "name": "Wait Before Retry",
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          1152,
+          304
+        ],
+        "webhookId": "7acfc052-147d-4690-806e-e622e38de404"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "campaignId",
+                "name": "campaignId",
+                "value": "={{ $(\"Receive Campaign\").item.json.body.campaignId }}",
+                "type": "string"
+              },
+              {
+                "id": "state",
+                "name": "state",
+                "value": "={{ $(\"Claim Next Message\").item.json.state }}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "05c9a029-130d-4680-be21-558526b8d3de",
+        "name": "Return Campaign Result",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          1152,
+          448
+        ]
+      },
+      {
+        "parameters": {
+          "content": "## One responsibility\nRun one Campaign serially. Claiming one Message at a time makes pause/cancel checks happen before every send; the Wait nodes implement message, batch, and retry pacing without holding a worker.",
+          "height": 600,
+          "width": 1500,
+          "color": 4
+        },
+        "id": "72a4a287-80e1-4142-bef2-a84112dab8c3",
+        "name": "Sticky Note c0b720f5",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          208,
+          64
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://nextjs:3000/api/n8n/campaigns/fail",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ { \"campaignId\": $(\"Receive Campaign\").item.json.body.campaignId, \"errorMessage\": $(\"Send Claimed Message\").item.json.error?.message ?? \"Message sub-workflow failed\" } }}",
+          "options": {
+            "response": {
+              "response": {
+                "neverError": true,
+                "responseFormat": "json"
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "id": "f2af3584-34ec-4a32-8c1b-27deb913f1b5",
+        "name": "Record Send Workflow Failure",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          1440,
+          592
+        ],
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 5000,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "id": "72383a77-4c55-42d7-9e72-5e730c370acb",
+        "name": "Receive Campaign",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2.1,
+        "position": [
+          240,
+          304
+        ],
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "campaign/run",
+          "responseMode": "onReceived",
+          "options": {}
+        },
+        "webhookId": "bccf1f36-99d0-48ea-b71d-f8fec7ebae5c"
+      }
+    ],
+    "connections": {
+      "Claim Next Message": {
+        "main": [
+          [
+            {
+              "node": "Route Claim State",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Record Runner Failure",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Route Claim State": {
+        "main": [
+          [
+            {
+              "node": "Send Claimed Message",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Wait Before Retry",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Return Campaign Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Send Claimed Message": {
+        "main": [
+          [
+            {
+              "node": "Wait After Send",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Record Send Workflow Failure",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Wait After Send": {
+        "main": [
+          [
+            {
+              "node": "Claim Next Message",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Record Runner Failure": {
+        "main": [
+          [
+            {
+              "node": "Return Runner Failure",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Wait Before Retry": {
+        "main": [
+          [
+            {
+              "node": "Claim Next Message",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Record Send Workflow Failure": {
+        "main": [
+          [
+            {
+              "node": "Return Runner Failure",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Receive Campaign": {
+        "main": [
+          [
+            {
+              "node": "Claim Next Message",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "availableInMCP": true,
+      "binaryMode": "separate",
+      "timezone": "America/Sao_Paulo",
+      "executionTimeout": 3600,
+      "callerPolicy": "workflowsFromSameOwner",
+      "errorWorkflow": "Iy4k3zdS7i9RBMvr"
+    },
+    "staticData": null,
+    "meta": {
+      "aiBuilderAssisted": true,
+      "builderVariant": "mcp"
+    },
+    "nodeGroups": [],
+    "pinData": {},
+    "versionId": "45091feb-f875-439a-818e-116e662675d6",
+    "activeVersionId": "45091feb-f875-439a-818e-116e662675d6",
+    "versionCounter": 7,
+    "triggerCount": 1,
+    "sourceWorkflowId": null,
+    "tags": [
+      {
+        "updatedAt": "2026-07-20T04:31:46.674Z",
+        "createdAt": "2026-07-20T04:31:46.674Z",
+        "id": "8gcQj2uMPNMkmsC2",
+        "name": "campaign"
+      },
+      {
+        "updatedAt": "2026-07-20T04:31:46.687Z",
+        "createdAt": "2026-07-20T04:31:46.687Z",
+        "id": "USazuP5NLKvhmsBD",
+        "name": "subworkflow"
+      }
+    ],
+    "shared": [
+      {
+        "updatedAt": "2026-07-20T04:25:19.689Z",
+        "createdAt": "2026-07-20T04:25:19.689Z",
+        "role": "workflow:owner",
+        "workflowId": "Cy8wGgpsPfOWeEZw",
+        "projectId": "AOSsJTWmOhH0QjvP",
+        "project": {
+          "updatedAt": "2026-07-19T23:05:57.329Z",
+          "createdAt": "2026-07-19T23:02:51.086Z",
+          "id": "AOSsJTWmOhH0QjvP",
+          "name": "Victor  Schiavo <schiavovictor@outlook.com>",
+          "type": "personal",
+          "icon": null,
+          "description": null,
+          "customTelemetryTags": [],
+          "creatorId": "0e3bd927-b68a-43a9-959a-2a65733b2f69"
+        }
+      }
+    ],
+    "versionMetadata": {
+      "name": null,
+      "description": null
+    }
+  }
+]
