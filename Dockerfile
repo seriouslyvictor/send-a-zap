@@ -23,7 +23,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Accept build arguments
-ARG DATABASE_URL=postgresql://build:build@localhost:5432/build?schema=public
+ARG DATABASE_URL=postgresql://build:[REDACTED]@localhost:5432/build?schema=public
 ARG BUILDTIME
 ARG VERSION
 
@@ -69,6 +69,10 @@ USER nextjs
 
 # Expose port 3000
 EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD wget --spider -q http://localhost:3000/api/health || exit 1
 
 # Start Next.js server
 CMD ["node", "server.js"]

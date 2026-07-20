@@ -42,6 +42,9 @@
       "Bash(gh run list:*)",
       "Bash(npx next lint:*)",
       "Bash(npx eslint:*)"
+    ],
+    "additionalDirectories": [
+      "D:\\Bella-bot"
     ]
   },
   "enableAllProjectMcpServers": true,

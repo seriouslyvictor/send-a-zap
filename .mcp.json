@@ -1,18 +1,5 @@
 {
   "mcpServers": {
-    "n8n-mcp": {
-      "command": "cmd",
-      "args": [
-        "/c npx n8n-mcp"
-      ],
-      "env": {
-        "MCP_MODE": "stdio",
-        "LOG_LEVEL": "error",
-        "DISABLE_CONSOLE_OUTPUT": "true",
-        "N8N_API_URL": "",
-        "N8N_API_KEY": ""
-      }
-    },
     "shadcn": {
       "command": "cmd",
       "args": [ "/c", "npx",
@@ -22,3 +9,4 @@
     }
   }
 }
+
