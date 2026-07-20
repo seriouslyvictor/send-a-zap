@@ -35,7 +35,7 @@ git clone <your-repo> whatsapp9002
 
 # 4. Work from here - hot reload will work perfectly!
 cd whatsapp9002
-npm run docker:dev
+pnpm run docker:dev
 ```
 
 **Access from Windows**:
@@ -105,12 +105,12 @@ Next.js 16 uses Turbopack by default, which has different polling behavior.
 
 ```bash
 # Edit docker-compose.dev.yml, change the command to:
-command: sh -c "npm install && npm run dev:webpack"
+command: sh -c "pnpm install --frozen-lockfile && pnpm run dev:webpack"
 ```
 
 Or run locally:
 ```bash
-npm run dev:webpack
+pnpm run dev:webpack
 ```
 
 **Pros**:
@@ -145,8 +145,8 @@ Sometimes Next.js cache gets corrupted:
 
 ```bash
 # Clear .next cache and restart
-npm run docker:dev:clear-cache
-npm run docker:dev:restart
+pnpm run docker:dev:clear-cache
+pnpm run docker:dev:restart
 ```
 
 ---
@@ -157,7 +157,7 @@ npm run docker:dev:restart
 
 1. Start dev server:
    ```bash
-   npm run docker:dev
+   pnpm run docker:dev
    ```
 
 2. Edit a file (e.g., `app/page.tsx`):
@@ -168,7 +168,7 @@ npm run docker:dev:restart
 
 3. Watch container logs:
    ```bash
-   npm run docker:dev:logs
+   pnpm run docker:dev:logs
    ```
 
 4. **If you see**: `○ Compiling /...` within 1-2 seconds → **Working! ✅**
@@ -181,11 +181,11 @@ npm run docker:dev:restart
 ### For Best Performance:
 1. **Move project to WSL2** (`~/projects/whatsapp9002`)
 2. Remove polling from `next.config.ts` (not needed)
-3. Use Turbopack (default `npm run dev`)
+3. Use Turbopack (default `pnpm run dev`)
 
 ### For Keep-on-Windows:
 1. **Use current setup** (polling enabled)
-2. If issues persist, switch to webpack: `npm run dev:webpack`
+2. If issues persist, switch to webpack: `pnpm run dev:webpack`
 3. Accept 1-second delay as trade-off
 
 ---
@@ -196,16 +196,16 @@ npm run docker:dev:restart
 
 ```bash
 # 1. Clear cache
-npm run docker:dev:clear-cache
+pnpm run docker:dev:clear-cache
 
 # 2. Stop containers
-npm run docker:dev:down
+pnpm run docker:dev:down
 
 # 3. Start fresh
-npm run docker:dev
+pnpm run docker:dev
 
 # 4. Watch logs
-npm run docker:dev:logs
+pnpm run docker:dev:logs
 ```
 
 ### Still not working?
@@ -213,11 +213,11 @@ npm run docker:dev:logs
 ```bash
 # Try webpack mode
 # Edit docker-compose.dev.yml line 281:
-command: sh -c "npm install && npm run dev:webpack"
+command: sh -c "pnpm install --frozen-lockfile && pnpm run dev:webpack"
 
 # Restart
-npm run docker:dev:down
-npm run docker:dev
+pnpm run docker:dev:down
+pnpm run docker:dev
 ```
 
 ### Works but slow (2-5 second delay)?

@@ -17,6 +17,7 @@ The development compose file does not start PostgreSQL, Redis, pgAdmin, or Evolu
 ## Prerequisites
 
 - Node.js 20+
+- pnpm via Corepack: run `corepack enable` once. The `packageManager` field in `package.json` pins the exact pnpm version (currently `pnpm@11.13.0`), so no separate pnpm install step is needed.
 - Docker with Compose v2
 - PostgreSQL reachable on the host (default port `5432`)
 - Evolution Go reachable on the host (default URL `http://localhost:8080`)
@@ -36,7 +37,7 @@ The expected response is `{"status":"ok"}`.
 1. Install JavaScript dependencies:
 
    ```bash
-   npm ci
+   pnpm install --frozen-lockfile
    ```
 
 2. Create the local environment file and replace every placeholder secret:
@@ -68,13 +69,13 @@ The expected response is `{"status":"ok"}`.
    run again:
 
    ```bash
-   npm run db:init:dev
+   pnpm run db:init:dev
    ```
 
 4. Start the project-owned services:
 
    ```bash
-   npm run docker:dev
+   pnpm run docker:dev
    ```
 
    The Next.js container first checks Evolution Go's `/server/ok` endpoint,
@@ -97,25 +98,25 @@ The expected response is `{"status":"ok"}`.
    To verify the database and migrations:
 
    ```bash
-   npm run docker:dev:ps
+   pnpm run docker:dev:ps
    docker compose --env-file .env -f deployment/docker-compose.dev.yml \
-     exec nextjs npx prisma migrate status
+     exec nextjs pnpm exec prisma migrate status
    ```
 
 ## Development commands
 
 ```bash
-npm run dev                  # Next.js directly on the host
-npm run build                # Prisma generation + production build
-npm run lint                 # ESLint
-npm run typecheck            # TypeScript without emitting files
-npm run test:run             # Vitest once
+pnpm run dev                  # Next.js directly on the host
+pnpm run build                # Prisma generation + production build
+pnpm run lint                 # ESLint
+pnpm run typecheck            # TypeScript without emitting files
+pnpm run test:run             # Vitest once
 
-npm run docker:dev           # Next.js + n8n with hot reload
-npm run docker:dev:detached  # Start in the background
-npm run docker:dev:logs      # Follow Next.js logs
-npm run docker:dev:ps        # Show the two project containers
-npm run docker:dev:down      # Stop the project containers
+pnpm run docker:dev           # Next.js + n8n with hot reload
+pnpm run docker:dev:detached  # Start in the background
+pnpm run docker:dev:logs      # Follow Next.js logs
+pnpm run docker:dev:ps        # Show the two project containers
+pnpm run docker:dev:down      # Stop the project containers
 ```
 
 For host-only Next.js development, create `.env.local` with a `DATABASE_URL`

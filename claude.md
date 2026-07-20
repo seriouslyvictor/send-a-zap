@@ -18,42 +18,49 @@ Browser → Next.js (Client Components + API Routes) → n8n/Evolution API
 
 ## Development Commands
 
+Prerequisite: run `corepack enable` once. The `packageManager` field in `package.json` pins the exact pnpm version, so no separate pnpm install step is needed.
+
 ```bash
 # Next.js Development
-npm run dev              # Start dev server (http://localhost:3000)
-npm run dev:webpack      # Use webpack instead of Turbopack (better for Docker hot reload)
-npm run build            # Production build (includes Prisma generation)
-npm run start            # Start production server
-npm run lint             # Run ESLint
+pnpm run dev              # Start dev server (http://localhost:3000)
+pnpm run dev:webpack      # Use webpack instead of Turbopack (better for Docker hot reload)
+pnpm run build            # Production build (includes Prisma generation)
+pnpm run start            # Start production server
+pnpm run lint             # Run ESLint
+pnpm run typecheck        # TypeScript check without emitting files
+pnpm run build:check      # Build + lint + typecheck (CI-style check)
 
 # Testing
-npm test                 # Run Vitest in watch mode
-npm run test:ui          # Run Vitest with UI
-npm run test:run         # Run tests once (CI mode)
+pnpm test                 # Run Vitest in watch mode
+pnpm run test:ui          # Run Vitest with UI
+pnpm run test:run         # Run tests once (CI mode)
 
 # Database (Prisma)
-npm run db:generate      # Generate Prisma client
-npm run db:migrate       # Create and apply migration (dev)
-npm run db:migrate:deploy # Apply migrations (production)
-npm run db:push          # Push schema without migration (dev only)
-npm run db:studio        # Open Prisma Studio GUI
+pnpm run db:generate      # Generate Prisma client
+pnpm run db:init:dev      # Create project databases on the shared PostgreSQL server
+pnpm run db:migrate       # Create and apply migration (dev)
+pnpm run db:migrate:deploy # Apply migrations (production)
+pnpm run db:push          # Push schema without migration (dev only)
+pnpm run db:studio        # Open Prisma Studio GUI
 
 # Docker - Development (with hot reload)
-npm run docker:dev       # Start Next.js dev mode in Docker
-npm run docker:dev:detached # Start in background
-npm run docker:dev:down  # Stop dev containers
-npm run docker:dev:logs  # View Next.js logs
-npm run docker:dev:restart # Restart Next.js container
-npm run docker:dev:clear-cache # Clear .next cache (fixes hot reload issues)
+pnpm run docker:dev       # Start Next.js dev mode in Docker
+pnpm run docker:dev:detached # Start in background
+pnpm run docker:dev:down  # Stop dev containers
+pnpm run docker:dev:logs  # View Next.js logs
+pnpm run docker:dev:ps    # Check dev container status
+pnpm run docker:dev:restart # Restart Next.js container
+pnpm run docker:dev:clear-cache # Clear .next cache (fixes hot reload issues)
+pnpm run docker:dev:clean # Stop dev containers and remove volumes (destructive!)
 
 # Docker - Production Stack (all services)
-npm run docker:up        # Start entire stack (Next.js, n8n, Evolution, PostgreSQL, Redis, pgAdmin)
-npm run docker:down      # Stop all containers
-npm run docker:logs      # View all logs
-npm run docker:ps        # Check container status
-npm run docker:restart   # Restart all services
-npm run docker:rebuild   # Rebuild Next.js container
-npm run docker:clean     # Remove everything including volumes (destructive!)
+pnpm run docker:up        # Start entire stack (Next.js, n8n, Evolution, PostgreSQL, Redis, pgAdmin)
+pnpm run docker:down      # Stop all containers
+pnpm run docker:logs      # View all logs
+pnpm run docker:ps        # Check container status
+pnpm run docker:restart   # Restart all services
+pnpm run docker:rebuild   # Rebuild Next.js container
+pnpm run docker:clean     # Remove everything including volumes (destructive!)
 ```
 
 ## Tech Stack
@@ -213,19 +220,19 @@ Workflows call Next.js API routes to read/update campaign data in database.
 
 ### Local Development (without Docker)
 1. Set up `.env.local` with database connection
-2. Run `npm run db:push` to sync schema
-3. Run `npm run dev` to start Next.js
+2. Run `pnpm run db:push` to sync schema
+3. Run `pnpm run dev` to start Next.js
 4. Access http://localhost:3000
 
 ### Docker Development (with hot reload)
 1. Configure `.env` file
-2. Run `npm run docker:dev`
+2. Run `pnpm run docker:dev`
 3. Edit code - changes reflect immediately
-4. View logs with `npm run docker:dev:logs`
+4. View logs with `pnpm run docker:dev:logs`
 
 ### Full Stack (n8n + Evolution + Everything)
 1. Configure `.env` file
-2. Run `npm run docker:up`
+2. Run `pnpm run docker:up`
 3. Access services at their respective ports
 4. Import n8n workflows from `workflows/n8n/`
 5. Configure Evolution API webhook to point to Next.js `/api/webhooks/evolution`
@@ -235,8 +242,8 @@ Workflows call Next.js API routes to read/update campaign data in database.
 Uses Vitest with happy-dom for DOM simulation:
 - Tests are co-located with source files: `*.test.ts`
 - Example: `lib/phone-validator.test.ts` tests `lib/phone-validator.ts`
-- Run `npm test` for watch mode during development
-- Run `npm run test:run` for CI
+- Run `pnpm test` for watch mode during development
+- Run `pnpm run test:run` for CI
 
 ## Important Patterns
 
@@ -269,14 +276,14 @@ These must ONLY run in API routes (never client components):
 
 ## Common Gotchas
 
-1. **Prisma Client in Development**: Run `npm run db:generate` after schema changes
+1. **Prisma Client in Development**: Run `pnpm run db:generate` after schema changes
 2. **Docker Build**: `build` script includes `prisma generate` automatically
 3. **Hot Reload in Docker**: Use `docker:dev` commands, not `docker:up`
 4. **API Keys**: Double-check they're in `.env`, not `.env.local` for Docker
 5. **Phone Format**: Evolution API expects format `5511987654321` (country + area + number)
 6. **Next.js Hot Reload Not Working (Docker + Windows)**:
    - **Root Cause**: WSL2 filesystem event propagation issues between Windows and Linux container
-   - **Quick Fix**: `npm run docker:dev:clear-cache` then `npm run docker:dev:restart`
+   - **Quick Fix**: `pnpm run docker:dev:clear-cache` then `pnpm run docker:dev:restart`
    - **Turbopack + Webpack polling** configured in `next.config.ts` (1 second delay expected)
    - **Already configured**: Environment variables force polling mode for both bundlers
    - **If still broken**: Switch to webpack mode (edit `docker-compose.dev.yml` line 281 to use `dev:webpack`)

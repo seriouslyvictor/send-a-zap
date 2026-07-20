@@ -69,6 +69,7 @@ const environment = {
   DATABASE_URL: buildDatabaseUrl(),
 };
 
-await run("npm", ["ci"], environment);
-await run("npm", ["run", "db:migrate:deploy"], environment);
-await run("npm", ["run", "dev"], environment);
+await run("corepack", ["enable", "pnpm"], environment);
+await run("pnpm", ["install", "--frozen-lockfile"], environment);
+await run("pnpm", ["run", "db:migrate:deploy"], environment);
+await run("pnpm", ["run", "dev"], environment);

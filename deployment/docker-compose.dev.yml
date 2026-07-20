@@ -59,12 +59,14 @@ services:
       CHOKIDAR_INTERVAL: "1000"
       TURBOPACK_USE_POLLING: "true"
       NEXT_TELEMETRY_DISABLED: "1"
+      PNPM_CONFIG_STORE_DIR: /pnpm-store
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - ../:/app
       - nextjs_node_modules_dev:/app/node_modules
       - nextjs_build_dev:/app/.next
+      - nextjs_pnpm_store_dev:/pnpm-store
     depends_on:
       n8n:
         condition: service_healthy
@@ -73,3 +75,4 @@ volumes:
   n8n_data_dev:
   nextjs_node_modules_dev:
   nextjs_build_dev:
+  nextjs_pnpm_store_dev:
