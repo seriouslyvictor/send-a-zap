@@ -62,6 +62,20 @@ async function qrImage(connection: EvolutionConnection): Promise<string | null> 
   return qr.code ? QRCode.toDataURL(qr.code, { width: 300, margin: 2 }) : null;
 }
 
+function authenticatedWebhookUrl(): string {
+  const configuredUrl = process.env.EVOLUTION_WEBHOOK_URL;
+  const secret = process.env.EVOLUTION_WEBHOOK_SECRET;
+  if (!configuredUrl || !secret) {
+    throw new Error(
+      "Evolution webhook configuration missing. Set EVOLUTION_WEBHOOK_URL and EVOLUTION_WEBHOOK_SECRET.",
+    );
+  }
+
+  const webhookUrl = new URL(configuredUrl);
+  webhookUrl.searchParams.set("secret", secret);
+  return webhookUrl.toString();
+}
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json().catch(() => null)) as { consent?: unknown } | null;
@@ -85,8 +99,14 @@ export async function POST(request: Request) {
         }
 
         await getEvolutionAPI().connectInstance(connection, {
-          webhookUrl: process.env.EVOLUTION_WEBHOOK_URL,
-          subscribe: ["MESSAGE", "CONNECTION", "QRCODE", "READ_RECEIPT"],
+          webhookUrl: authenticatedWebhookUrl(),
+          subscribe: [
+            "MESSAGE",
+            "SEND_MESSAGE",
+            "CONNECTION",
+            "QRCODE",
+            "READ_RECEIPT",
+          ],
         });
 
         return {

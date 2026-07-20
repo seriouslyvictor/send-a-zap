@@ -1,443 +1,200 @@
-/**
- * Evolution API Webhook Receiver
- *
- * POST /api/webhooks/evolution - Receive message status updates from Evolution API
- *
- * Handles events:
- * - messages.upsert - Message sent confirmation
- * - messages.update - Delivery and read receipts
- * - send.message - Message sent (alternative event)
- */
+import { timingSafeEqual } from "node:crypto";
 
-import { NextRequest, NextResponse } from "next/server";
+import { CampaignStatus, MessageStatus, type Prisma } from "@prisma/client";
+import { NextResponse } from "next/server";
+
+import { EVOLUTION_CONNECTION_ID } from "@/lib/evolution-connection";
+import {
+  normalizeEvolutionWebhook,
+  type EvolutionMessageStatus,
+} from "@/lib/evolution-webhook";
 import { getPrisma } from "@/lib/prisma";
-import { MessageStatus, CampaignStatus } from "@prisma/client";
 
-/**
- * Evolution API webhook event types
- */
-type EvolutionEvent =
-  | "messages.upsert"
-  | "messages.update"
-  | "send.message"
-  | "message.ack"
-  | "connection.update"
-  | "qrcode.updated"
-  | string;
+const STATUS_RANK: Record<MessageStatus, number> = {
+  PENDING: 0,
+  QUEUED: 1,
+  SENT: 2,
+  DELIVERED: 3,
+  READ: 4,
+  FAILED: -1,
+};
 
-/**
- * Message acknowledgement status from Evolution API
- */
-enum MessageAck {
-  ERROR = -1,
-  PENDING = 0,
-  SERVER = 1,
-  DEVICE = 2,
-  READ = 3,
-  PLAYED = 4, // For voice messages
+function suppliedWebhookSecret(request: Request): string | null {
+  return (
+    request.headers.get("x-evolution-webhook-secret") ??
+    new URL(request.url).searchParams.get("secret")
+  );
 }
 
-/**
- * Evolution API webhook payload structure
- */
-interface EvolutionWebhookPayload {
-  event: EvolutionEvent;
-  instance: string;
-  data: {
-    key?: {
-      remoteJid?: string;
-      fromMe?: boolean;
-      id?: string;
-    };
-    message?: {
-      conversation?: string;
-      extendedTextMessage?: {
-        text?: string;
-      };
-    };
-    messageTimestamp?: number;
-    status?: string;
-    pushName?: string;
-    // For message.ack / messages.update
-    update?: {
-      status?: string;
-    };
-    // Message ID variations
-    id?: string;
-    messageId?: string;
-    // Acknowledgement status
-    ack?: number;
-    // Error info
-    error?: string;
-  };
-  destination?: string;
-  date_time?: string;
-  sender?: string;
-  server_url?: string;
-  apikey?: string;
+function webhookSecretMatches(request: Request): boolean {
+  const expected = process.env.EVOLUTION_WEBHOOK_SECRET;
+  const supplied = suppliedWebhookSecret(request);
+  if (!expected || !supplied) return false;
+
+  const expectedBytes = Buffer.from(expected);
+  const suppliedBytes = Buffer.from(supplied);
+  return (
+    expectedBytes.length === suppliedBytes.length &&
+    timingSafeEqual(expectedBytes, suppliedBytes)
+  );
 }
 
-/**
- * Map Evolution ACK status to our MessageStatus
- */
-function ackToMessageStatus(ack: number): MessageStatus | null {
-  switch (ack) {
-    case MessageAck.ERROR:
-      return MessageStatus.FAILED;
-    case MessageAck.PENDING:
-    case MessageAck.SERVER:
-      return MessageStatus.SENT;
-    case MessageAck.DEVICE:
-      return MessageStatus.DELIVERED;
-    case MessageAck.READ:
-    case MessageAck.PLAYED:
-      return MessageStatus.READ;
-    default:
-      return null;
+function eventTime(timestamp?: string): Date {
+  const parsed = timestamp ? new Date(timestamp) : new Date(Number.NaN);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
+function transitionData(
+  currentStatus: MessageStatus,
+  nextStatus: EvolutionMessageStatus,
+  occurredAt: Date,
+): {
+  message: Prisma.MessageUpdateManyMutationInput;
+  campaign: Prisma.CampaignUpdateInput;
+} | null {
+  const next = nextStatus as MessageStatus;
+  const currentRank = STATUS_RANK[currentStatus];
+  const nextRank = STATUS_RANK[next];
+  if (currentStatus === MessageStatus.FAILED || nextRank <= currentRank) {
+    return null;
   }
+
+  const message: Prisma.MessageUpdateManyMutationInput = { status: next };
+  const campaign: Prisma.CampaignUpdateInput = {};
+
+  if (currentRank < STATUS_RANK.SENT && nextRank >= STATUS_RANK.SENT) {
+    message.sentAt = occurredAt;
+    campaign.sentCount = { increment: 1 };
+  }
+  if (currentRank < STATUS_RANK.DELIVERED && nextRank >= STATUS_RANK.DELIVERED) {
+    message.deliveredAt = occurredAt;
+    campaign.deliveredCount = { increment: 1 };
+  }
+  if (currentRank < STATUS_RANK.READ && nextRank >= STATUS_RANK.READ) {
+    message.readAt = occurredAt;
+    campaign.readCount = { increment: 1 };
+  }
+
+  return { message, campaign };
 }
 
-/**
- * POST /api/webhooks/evolution
- * Process webhook events from Evolution API
- */
-export async function POST(request: NextRequest) {
-  try {
-    // Parse webhook payload
-    const payload: EvolutionWebhookPayload = await request.json();
-
-    console.log(`[WEBHOOK] Received event: ${payload.event}`, {
-      instance: payload.instance,
-      hasData: !!payload.data,
+async function applyStatus(
+  messageId: string,
+  status: EvolutionMessageStatus,
+  occurredAt: Date,
+): Promise<string | null> {
+  const prisma = getPrisma();
+  return prisma.$transaction(async (transaction) => {
+    const current = await transaction.message.findFirst({
+      where: { messageId },
+      select: { id: true, campaignId: true, status: true },
     });
+    if (!current) return null;
 
-    // Handle different event types
-    switch (payload.event) {
-      case "messages.upsert":
-        return handleMessageUpsert(payload);
+    const transition = transitionData(current.status, status, occurredAt);
+    if (!transition) return current.campaignId;
 
-      case "messages.update":
-      case "message.ack":
-        return handleMessageUpdate(payload);
+    const updated = await transaction.message.updateMany({
+      where: { id: current.id, status: current.status },
+      data: transition.message,
+    });
+    if (updated.count !== 1) return current.campaignId;
 
-      case "send.message":
-        return handleSendMessage(payload);
-
-      case "connection.update":
-        // Log connection status changes but don't process
-        console.log(`[WEBHOOK] Connection update for ${payload.instance}:`, payload.data);
-        return NextResponse.json({ success: true, message: "Connection update logged" });
-
-      default:
-        // Log unknown events for debugging
-        console.log(`[WEBHOOK] Unhandled event type: ${payload.event}`);
-        return NextResponse.json({
-          success: true,
-          message: `Event type ${payload.event} not processed`,
-        });
+    if (Object.keys(transition.campaign).length > 0) {
+      await transaction.campaign.update({
+        where: { id: current.campaignId },
+        data: transition.campaign,
+      });
     }
-  } catch (error) {
-    console.error("[WEBHOOK] Error processing webhook:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Failed to process webhook",
-      },
-      { status: 500 }
-    );
-  }
-}
 
-/**
- * Handle messages.upsert event (new message sent or received)
- * This is called when a message is initially sent
- */
-async function handleMessageUpsert(payload: EvolutionWebhookPayload) {
-  const { data } = payload;
-
-  // Only process messages we sent (fromMe: true)
-  if (!data.key?.fromMe) {
-    return NextResponse.json({
-      success: true,
-      message: "Incoming message ignored (not from us)",
-    });
-  }
-
-  const messageId = data.key.id;
-
-  if (!messageId) {
-    console.log("[WEBHOOK] No message ID in upsert event");
-    return NextResponse.json({
-      success: true,
-      message: "No message ID in payload",
-    });
-  }
-
-  // Find the message by Evolution message ID
-  const message = await getPrisma().message.findFirst({
-    where: { messageId },
-    include: { campaign: true },
-  });
-
-  if (!message) {
-    // Message might not be from a campaign
-    console.log(`[WEBHOOK] Message ${messageId} not found in database`);
-    return NextResponse.json({
-      success: true,
-      message: "Message not found in database (might not be from a campaign)",
-    });
-  }
-
-  // Update message status to SENT
-  await getPrisma().message.update({
-    where: { id: message.id },
-    data: {
-      status: MessageStatus.SENT,
-      sentAt: new Date(),
-    },
-  });
-
-  // Update campaign sent count
-  await getPrisma().campaign.update({
-    where: { id: message.campaignId },
-    data: {
-      sentCount: { increment: 1 },
-    },
-  });
-
-  console.log(`[WEBHOOK] Message ${messageId} marked as SENT`);
-
-  return NextResponse.json({
-    success: true,
-    message: "Message status updated to SENT",
-    data: { messageId, status: MessageStatus.SENT },
+    return current.campaignId;
   });
 }
 
-/**
- * Handle messages.update / message.ack event (delivery/read receipt)
- */
-async function handleMessageUpdate(payload: EvolutionWebhookPayload) {
-  const { data } = payload;
-
-  // Get message ID from various possible locations
-  const messageId = data.key?.id || data.id || data.messageId;
-
-  if (!messageId) {
-    console.log("[WEBHOOK] No message ID in update event");
-    return NextResponse.json({
-      success: true,
-      message: "No message ID in payload",
-    });
-  }
-
-  // Find the message
-  const message = await getPrisma().message.findFirst({
-    where: { messageId },
-    include: { campaign: true },
-  });
-
-  if (!message) {
-    console.log(`[WEBHOOK] Message ${messageId} not found in database`);
-    return NextResponse.json({
-      success: true,
-      message: "Message not found in database",
-    });
-  }
-
-  // Determine new status from ACK
-  const ack = data.ack;
-  if (ack === undefined) {
-    console.log("[WEBHOOK] No ACK status in update event");
-    return NextResponse.json({
-      success: true,
-      message: "No ACK status in payload",
-    });
-  }
-
-  const newStatus = ackToMessageStatus(ack);
-  if (!newStatus) {
-    console.log(`[WEBHOOK] Unknown ACK status: ${ack}`);
-    return NextResponse.json({
-      success: true,
-      message: `Unknown ACK status: ${ack}`,
-    });
-  }
-
-  // Only update if status is progressing (don't go backwards)
-  const statusOrder = {
-    [MessageStatus.PENDING]: 0,
-    [MessageStatus.QUEUED]: 1,
-    [MessageStatus.SENT]: 2,
-    [MessageStatus.DELIVERED]: 3,
-    [MessageStatus.READ]: 4,
-    [MessageStatus.FAILED]: -1, // Failed can happen at any point
-  };
-
-  const currentOrder = statusOrder[message.status];
-  const newOrder = statusOrder[newStatus];
-
-  // Skip if trying to go backwards (unless it's FAILED)
-  if (newStatus !== MessageStatus.FAILED && newOrder <= currentOrder) {
-    console.log(
-      `[WEBHOOK] Skipping status update: ${message.status} -> ${newStatus} (not progressing)`
-    );
-    return NextResponse.json({
-      success: true,
-      message: `Status not updated (current: ${message.status}, new: ${newStatus})`,
-    });
-  }
-
-  // Prepare update data
-  const updateData: { status: MessageStatus; sentAt?: Date; deliveredAt?: Date; readAt?: Date; errorMessage?: string } = { status: newStatus };
-  const campaignUpdate: { sentCount?: { increment: number }; deliveredCount?: { increment: number }; readCount?: { increment: number }; failedCount?: { increment: number } } = {};
-
-  // Add timestamps based on new status
-  switch (newStatus) {
-    case MessageStatus.SENT:
-      if (!message.sentAt) updateData.sentAt = new Date();
-      if (message.status !== MessageStatus.SENT) campaignUpdate.sentCount = { increment: 1 };
-      break;
-    case MessageStatus.DELIVERED:
-      if (!message.deliveredAt) updateData.deliveredAt = new Date();
-      campaignUpdate.deliveredCount = { increment: 1 };
-      break;
-    case MessageStatus.READ:
-      if (!message.readAt) updateData.readAt = new Date();
-      campaignUpdate.readCount = { increment: 1 };
-      break;
-    case MessageStatus.FAILED:
-      updateData.errorMessage = data.error || "Message delivery failed";
-      campaignUpdate.failedCount = { increment: 1 };
-      break;
-  }
-
-  // Update message
-  await getPrisma().message.update({
-    where: { id: message.id },
-    data: updateData,
-  });
-
-  // Update campaign counters
-  if (Object.keys(campaignUpdate).length > 0) {
-    await getPrisma().campaign.update({
-      where: { id: message.campaignId },
-      data: campaignUpdate,
-    });
-  }
-
-  console.log(`[WEBHOOK] Message ${messageId} updated: ${message.status} -> ${newStatus}`);
-
-  // Check if campaign is complete
-  await checkCampaignCompletion(message.campaignId);
-
-  return NextResponse.json({
-    success: true,
-    message: `Message status updated to ${newStatus}`,
-    data: { messageId, status: newStatus },
-  });
-}
-
-/**
- * Handle send.message event (alternative message sent event)
- */
-async function handleSendMessage(payload: EvolutionWebhookPayload) {
-  const { data } = payload;
-
-  // Get message ID
-  const messageId = data.key?.id || data.id || data.messageId;
-
-  if (!messageId) {
-    console.log("[WEBHOOK] No message ID in send.message event");
-    return NextResponse.json({
-      success: true,
-      message: "No message ID in payload",
-    });
-  }
-
-  // Find and update message
-  const message = await getPrisma().message.findFirst({
-    where: { messageId },
-  });
-
-  if (!message) {
-    console.log(`[WEBHOOK] Message ${messageId} not found in database`);
-    return NextResponse.json({
-      success: true,
-      message: "Message not found in database",
-    });
-  }
-
-  // Update to SENT if not already
-  if (message.status === MessageStatus.QUEUED || message.status === MessageStatus.PENDING) {
-    await getPrisma().message.update({
-      where: { id: message.id },
-      data: {
-        status: MessageStatus.SENT,
-        sentAt: new Date(),
-      },
-    });
-
-    await getPrisma().campaign.update({
-      where: { id: message.campaignId },
-      data: {
-        sentCount: { increment: 1 },
-      },
-    });
-
-    console.log(`[WEBHOOK] Message ${messageId} marked as SENT (send.message event)`);
-  }
-
-  return NextResponse.json({
-    success: true,
-    message: "send.message event processed",
-    data: { messageId },
-  });
-}
-
-/**
- * Check if a campaign is complete (all messages processed)
- */
-async function checkCampaignCompletion(campaignId: string) {
-  const campaign = await getPrisma().campaign.findUnique({
-    where: { id: campaignId },
-    include: {
-      _count: {
-        select: { messages: true },
-      },
-    },
-  });
-
-  if (!campaign || campaign.status !== CampaignStatus.RUNNING) {
-    return;
-  }
-
-  // Count remaining pending/queued messages
-  const pendingCount = await getPrisma().message.count({
+async function completeCampaignWhenFinished(campaignId: string): Promise<void> {
+  const prisma = getPrisma();
+  const pendingCount = await prisma.message.count({
     where: {
       campaignId,
       status: { in: [MessageStatus.PENDING, MessageStatus.QUEUED] },
     },
   });
+  if (pendingCount !== 0) return;
 
-  // If no more pending messages, mark campaign as completed
-  if (pendingCount === 0) {
-    await getPrisma().campaign.update({
-      where: { id: campaignId },
+  await prisma.campaign.updateMany({
+    where: { id: campaignId, status: CampaignStatus.RUNNING },
+    data: { status: CampaignStatus.COMPLETED, completedAt: new Date() },
+  });
+}
+
+export async function POST(request: Request) {
+  if (!process.env.EVOLUTION_WEBHOOK_SECRET) {
+    console.error("[EVOLUTION_WEBHOOK] EVOLUTION_WEBHOOK_SECRET is not configured");
+    return NextResponse.json(
+      { success: false, error: "Webhook authentication is not configured" },
+      { status: 503 },
+    );
+  }
+  if (!webhookSecretMatches(request)) {
+    return NextResponse.json(
+      { success: false, error: "Unauthorized webhook" },
+      { status: 401 },
+    );
+  }
+
+  let payload: unknown;
+  try {
+    payload = await request.json();
+  } catch {
+    return NextResponse.json(
+      { success: false, error: "Invalid JSON payload" },
+      { status: 400 },
+    );
+  }
+
+  const event = normalizeEvolutionWebhook(payload);
+  if (!event) {
+    return NextResponse.json({ success: true, message: "Event ignored" });
+  }
+
+  const connection = await getPrisma().evolutionConnection.findUnique({
+    where: { id: EVOLUTION_CONNECTION_ID },
+    select: { instanceId: true },
+  });
+  if (!connection || event.instanceId !== connection.instanceId) {
+    return NextResponse.json({
+      success: true,
+      message: "Foreign Evolution instance ignored",
+    });
+  }
+
+  try {
+    const occurredAt = eventTime(event.timestamp);
+    const campaignIds = new Set<string>();
+    for (const messageId of event.messageIds) {
+      const campaignId = await applyStatus(messageId, event.status, occurredAt);
+      if (campaignId) campaignIds.add(campaignId);
+    }
+    for (const campaignId of campaignIds) {
+      await completeCampaignWhenFinished(campaignId);
+    }
+
+    return NextResponse.json({
+      success: true,
       data: {
-        status: CampaignStatus.COMPLETED,
-        completedAt: new Date(),
+        messageIds: event.messageIds,
+        status: event.status,
       },
     });
-
-    console.log(`[WEBHOOK] Campaign ${campaignId} marked as COMPLETED`);
+  } catch (error) {
+    console.error("[EVOLUTION_WEBHOOK] Status update failed:", error);
+    return NextResponse.json(
+      { success: false, error: "Failed to update message status" },
+      { status: 500 },
+    );
   }
 }
 
-/**
- * GET /api/webhooks/evolution
- * Health check endpoint for webhook configuration
- */
 export async function GET() {
   return NextResponse.json({
     success: true,

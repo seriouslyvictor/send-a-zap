@@ -52,6 +52,8 @@ services:
       N8N_WEBHOOK_URL: http://n8n:5678
       EVOLUTION_API_URL: ${EVOLUTION_API_URL:-http://host.docker.internal:8080}
       EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
+      EVOLUTION_WEBHOOK_URL: ${EVOLUTION_WEBHOOK_URL:-http://host.docker.internal:3000/api/webhooks/evolution}
+      EVOLUTION_WEBHOOK_SECRET: ${EVOLUTION_WEBHOOK_SECRET}
       WATCHPACK_POLLING: "true"
       CHOKIDAR_USEPOLLING: "true"
       CHOKIDAR_INTERVAL: "1000"
