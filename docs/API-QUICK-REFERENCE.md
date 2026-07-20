@@ -168,9 +168,11 @@ The API auto-normalizes most formats, but E.164 is safest.
 ## Environment Variables
 
 ```bash
-# Evolution API
+# Evolution Go
 EVOLUTION_API_URL=http://localhost:8080
 EVOLUTION_API_KEY=your-api-key
+EVOLUTION_WEBHOOK_URL=http://host.docker.internal:3000/api/webhooks/evolution
+EVOLUTION_WEBHOOK_SECRET=replace-with-a-random-secret
 
 # n8n
 N8N_WEBHOOK_URL=http://localhost:5678/webhook
@@ -183,24 +185,21 @@ DATABASE_URL=postgresql://...
 
 ## Webhooks
 
-Evolution API sends events to:
+Evolution Go sends authenticated events to:
 ```
-POST /api/webhooks/evolution
+POST /api/webhooks/evolution?secret={EVOLUTION_WEBHOOK_SECRET}
 ```
 
 **Events:**
-- `messages.upsert` - Message sent
-- `messages.update` - Delivery/read receipt
-- `message.ack` - Status change
-- `connection.update` - Connection status
+- `Message` / `SendMessage` with `data.Info.ID` - Sent
+- `Receipt` with root `state: "Delivered"` and `data.MessageIDs` - Delivered
+- `Receipt` with root `state: "Read"` or `"ReadSelf"` - Read
 
-**ACK Codes:**
-- `-1` = Failed
-- `0` = Pending
-- `1` = Server received
-- `2` = Delivered
-- `3` = Read
-- `4` = Played (voice)
+Evolution Go 0.7.2 cannot add a custom webhook header, so the Connection route
+adds the shared secret to the callback query. Missing/wrong secrets return
+`401`; invalid JSON returns `400`; missing server configuration returns `503`.
+Events whose `instanceId` is not the persisted Send-a-Zap Connection are
+acknowledged and ignored.
 
 ---
 

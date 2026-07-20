@@ -894,16 +894,19 @@ No request body required.
 
 ## Webhooks API
 
-Endpoints for receiving webhook events from Evolution API.
+Endpoints for receiving webhook events from Evolution Go.
 
 ### POST /api/webhooks/evolution
 
-Receive message status updates and events from Evolution API.
+Receive authenticated message status events from Evolution Go. The Connection
+route registers a callback URL containing the shared secret. A caller may also
+provide the same value in the `x-evolution-webhook-secret` header for
+diagnostics.
 
 #### Request
 
 ```http
-POST /api/webhooks/evolution
+POST /api/webhooks/evolution?secret={EVOLUTION_WEBHOOK_SECRET}
 Content-Type: application/json
 ```
 
@@ -911,81 +914,66 @@ Content-Type: application/json
 
 | Event | Description |
 |-------|-------------|
-| `messages.upsert` | New message sent or received |
-| `messages.update` | Delivery or read receipt |
-| `message.ack` | Message acknowledgement status change |
-| `send.message` | Alternative message sent event |
-| `connection.update` | Connection status change |
-| `qrcode.updated` | QR code regenerated |
+| `Message` | Sent or received WhatsApp message; only outbound (`Info.IsFromMe`) updates campaign status |
+| `SendMessage` | Message accepted by Evolution Go's send endpoint |
+| `Receipt` | Delivery/read confirmation; root `state` is `Delivered`, `Read`, or `ReadSelf` |
 
 #### Request Body Examples
 
-**messages.upsert (Message Sent)**
+**SendMessage (Message Sent)**
 ```json
 {
-  "event": "messages.upsert",
-  "instance": "whatsapp-main",
+  "event": "SendMessage",
   "data": {
-    "key": {
-      "remoteJid": "5511999999999@s.whatsapp.net",
-      "fromMe": true,
-      "id": "3EB0ABC123"
+    "Info": {
+      "ID": "3EB0ABC123",
+      "Chat": "5511999999999@s.whatsapp.net",
+      "IsFromMe": true,
+      "Timestamp": "2026-07-19T16:29:00-03:00"
     },
-    "message": {
+    "Message": {
       "conversation": "Hello!"
-    },
-    "messageTimestamp": 1704801600
-  }
+    }
+  },
+  "instanceId": "demo-instance-uuid",
+  "instanceName": "send-a-zap-demo",
+  "instanceToken": "provider-instance-token"
 }
 ```
 
-**messages.update (Delivery Receipt)**
+**Receipt (Delivery or Read)**
 ```json
 {
-  "event": "messages.update",
-  "instance": "whatsapp-main",
+  "event": "Receipt",
+  "state": "Delivered",
   "data": {
-    "key": {
-      "remoteJid": "5511999999999@s.whatsapp.net",
-      "fromMe": true,
-      "id": "3EB0ABC123"
-    },
-    "ack": 2
-  }
+    "Chat": "5511999999999@s.whatsapp.net",
+    "Sender": "5511000000000:1@s.whatsapp.net",
+    "IsFromMe": false,
+    "MessageIDs": ["3EB0ABC123"],
+    "Timestamp": "2026-07-19T16:31:00-03:00",
+    "Type": "delivered"
+  },
+  "instanceId": "demo-instance-uuid",
+  "instanceToken": "provider-instance-token"
 }
 ```
 
-**message.ack (Read Receipt)**
-```json
-{
-  "event": "message.ack",
-  "instance": "whatsapp-main",
-  "data": {
-    "id": "3EB0ABC123",
-    "ack": 3
-  }
-}
-```
+#### Receipt States
 
-#### ACK Status Codes
-
-| ACK | Status | Description |
-|-----|--------|-------------|
-| -1 | ERROR | Message failed |
-| 0 | PENDING | Sending... |
-| 1 | SERVER | Received by server |
-| 2 | DEVICE | Delivered to device |
-| 3 | READ | Read by recipient |
-| 4 | PLAYED | Played (voice messages) |
+| Evolution Go state | Message status |
+|--------------------|----------------|
+| `SendMessage`, outbound `Message` | `SENT` |
+| `Receipt` / `Delivered` | `DELIVERED` |
+| `Receipt` / `Read` or `ReadSelf` | `READ` |
 
 #### Response
 
 ```json
 {
   "success": true,
-  "message": "Message status updated to DELIVERED",
   "data": {
-    "messageId": "3EB0ABC123",
+    "messageIds": ["3EB0ABC123"],
     "status": "DELIVERED"
   }
 }
@@ -993,19 +981,13 @@ Content-Type: application/json
 
 #### Processing Logic
 
-**messages.upsert:**
-1. Check if message is from us (`fromMe: true`)
-2. Find message in database by `messageId`
-3. Update status to `SENT`
-4. Increment campaign `sentCount`
-
-**messages.update / message.ack:**
-1. Extract message ID from payload
-2. Find message in database
-3. Map ACK code to message status
-4. Update message status (only if progressing forward)
-5. Update campaign counters
-6. Check if campaign is complete
+1. Reject a missing or incorrect shared secret before reading the payload.
+2. Normalize Evolution Go's wire shape and canonicalize `@lid` chats to their
+   phone-number JID when `SenderAlt` or `RecipientAlt` is available.
+3. Ignore events from any instance other than the persisted Send-a-Zap demo.
+4. Advance each Message monotonically with compare-and-set retries.
+5. Increment crossed campaign counters in the same transaction, exactly once.
+6. Check whether the campaign is complete.
 
 #### Auto-completion
 
@@ -1014,6 +996,9 @@ If a campaign is `RUNNING` and all messages are processed (no `PENDING` or `QUEU
 #### Status Codes
 
 - `200 OK` - Event processed (even if ignored)
+- `400 Bad Request` - Body is not valid JSON
+- `401 Unauthorized` - Shared secret is missing or incorrect
+- `503 Service Unavailable` - Server has no webhook secret configured
 - `500 Internal Server Error` - Processing error
 
 ---
@@ -1159,9 +1144,11 @@ Messages can only progress forward (except to `FAILED` at any point).
 Required environment variables for API functionality:
 
 ```bash
-# Evolution API Configuration
+# Evolution Go Configuration
 EVOLUTION_API_URL=http://localhost:8080
 EVOLUTION_API_KEY=your-evolution-api-key
+EVOLUTION_WEBHOOK_URL=http://host.docker.internal:3000/api/webhooks/evolution
+EVOLUTION_WEBHOOK_SECRET=replace-with-an-independent-random-secret
 
 # n8n Webhook Configuration
 N8N_WEBHOOK_URL=http://localhost:5678/webhook
@@ -1170,24 +1157,25 @@ N8N_WEBHOOK_URL=http://localhost:5678/webhook
 DATABASE_URL=postgresql://user:password@localhost:5432/whatsapp_automation
 ```
 
-### Evolution API Webhook Setup
+### Evolution Go Webhook Setup
 
-Configure Evolution API to send events to your webhook:
+The application registers the authenticated webhook when the Operator starts a
+Connection. Evolution Go 0.7.2 cannot attach a custom header, so the route adds
+`?secret={EVOLUTION_WEBHOOK_SECRET}` to `EVOLUTION_WEBHOOK_URL`. The secret must
+not be written directly into the configured base URL.
 
-```bash
-curl -X POST "http://localhost:8080/webhook/set/whatsapp-main" \
-  -H "apikey: your-api-key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "url": "http://your-domain.com/api/webhooks/evolution",
-    "webhook_by_events": true,
-    "events": [
-      "messages.upsert",
-      "messages.update",
-      "message.ack",
-      "connection.update"
-    ]
-  }'
+```json
+{
+  "webhookUrl": "http://host.docker.internal:3000/api/webhooks/evolution?secret=...",
+  "subscribe": [
+    "MESSAGE",
+    "SEND_MESSAGE",
+    "CONNECTION",
+    "QRCODE",
+    "READ_RECEIPT"
+  ],
+  "immediate": true
+}
 ```
 
 ---

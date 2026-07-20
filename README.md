@@ -47,6 +47,14 @@ The expected response is `{"status":"ok"}`.
 
    On PowerShell, use `Copy-Item .env.example .env`.
 
+   Set `EVOLUTION_WEBHOOK_URL` to the callback URL Evolution Go can reach
+   (the development default is
+   `http://host.docker.internal:3000/api/webhooks/evolution`) and generate an
+   independent random `EVOLUTION_WEBHOOK_SECRET`. Send-a-Zap adds that secret
+   to the registered callback query because Evolution Go 0.7.2 does not support
+   custom webhook headers. Never expose the secret through a `NEXT_PUBLIC_`
+   variable.
+
    `POSTGRES_HOST` is the address used by the host-side database setup command,
    so `localhost` is correct when PostgreSQL is published locally. Compose uses
    `host.docker.internal` for the same server from inside its containers.
@@ -110,7 +118,11 @@ npm run docker:dev:ps        # Show the two project containers
 npm run docker:dev:down      # Stop the project containers
 ```
 
-For host-only Next.js development, create `.env.local` with a `DATABASE_URL` that uses `localhost`, plus `N8N_WEBHOOK_URL`, `EVOLUTION_API_URL`, and `EVOLUTION_API_KEY`. The compose workflow is the canonical near-production development path.
+For host-only Next.js development, create `.env.local` with a `DATABASE_URL`
+that uses `localhost`, plus `N8N_WEBHOOK_URL`, `EVOLUTION_API_URL`,
+`EVOLUTION_API_KEY`, `EVOLUTION_WEBHOOK_URL`, and
+`EVOLUTION_WEBHOOK_SECRET`. The compose workflow is the canonical
+near-production development path.
 
 ## Security boundary
 

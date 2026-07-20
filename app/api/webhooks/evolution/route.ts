@@ -1,23 +1,18 @@
 import { timingSafeEqual } from "node:crypto";
 
-import { CampaignStatus, MessageStatus, type Prisma } from "@prisma/client";
+import { CampaignStatus, MessageStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 
 import { EVOLUTION_CONNECTION_ID } from "@/lib/evolution-connection";
 import {
   normalizeEvolutionWebhook,
-  type EvolutionMessageStatus,
 } from "@/lib/evolution-webhook";
+import {
+  applyEvolutionMessageStatus,
+  type EvolutionStatusStore,
+  type StoredMessageStatus,
+} from "@/lib/evolution-webhook-status";
 import { getPrisma } from "@/lib/prisma";
-
-const STATUS_RANK: Record<MessageStatus, number> = {
-  PENDING: 0,
-  QUEUED: 1,
-  SENT: 2,
-  DELIVERED: 3,
-  READ: 4,
-  FAILED: -1,
-};
 
 function suppliedWebhookSecret(request: Request): string | null {
   return (
@@ -44,71 +39,86 @@ function eventTime(timestamp?: string): Date {
   return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
 }
 
-function transitionData(
-  currentStatus: MessageStatus,
-  nextStatus: EvolutionMessageStatus,
-  occurredAt: Date,
-): {
-  message: Prisma.MessageUpdateManyMutationInput;
-  campaign: Prisma.CampaignUpdateInput;
-} | null {
-  const next = nextStatus as MessageStatus;
-  const currentRank = STATUS_RANK[currentStatus];
-  const nextRank = STATUS_RANK[next];
-  if (currentStatus === MessageStatus.FAILED || nextRank <= currentRank) {
-    return null;
+function toPrismaStatus(status: StoredMessageStatus): MessageStatus {
+  switch (status) {
+    case "PENDING":
+      return MessageStatus.PENDING;
+    case "QUEUED":
+      return MessageStatus.QUEUED;
+    case "SENT":
+      return MessageStatus.SENT;
+    case "DELIVERED":
+      return MessageStatus.DELIVERED;
+    case "READ":
+      return MessageStatus.READ;
+    case "FAILED":
+      return MessageStatus.FAILED;
   }
-
-  const message: Prisma.MessageUpdateManyMutationInput = { status: next };
-  const campaign: Prisma.CampaignUpdateInput = {};
-
-  if (currentRank < STATUS_RANK.SENT && nextRank >= STATUS_RANK.SENT) {
-    message.sentAt = occurredAt;
-    campaign.sentCount = { increment: 1 };
-  }
-  if (currentRank < STATUS_RANK.DELIVERED && nextRank >= STATUS_RANK.DELIVERED) {
-    message.deliveredAt = occurredAt;
-    campaign.deliveredCount = { increment: 1 };
-  }
-  if (currentRank < STATUS_RANK.READ && nextRank >= STATUS_RANK.READ) {
-    message.readAt = occurredAt;
-    campaign.readCount = { increment: 1 };
-  }
-
-  return { message, campaign };
 }
 
-async function applyStatus(
-  messageId: string,
-  status: EvolutionMessageStatus,
-  occurredAt: Date,
-): Promise<string | null> {
+function fromPrismaStatus(status: MessageStatus): StoredMessageStatus {
+  switch (status) {
+    case MessageStatus.PENDING:
+      return "PENDING";
+    case MessageStatus.QUEUED:
+      return "QUEUED";
+    case MessageStatus.SENT:
+      return "SENT";
+    case MessageStatus.DELIVERED:
+      return "DELIVERED";
+    case MessageStatus.READ:
+      return "READ";
+    case MessageStatus.FAILED:
+      return "FAILED";
+  }
+}
+
+function prismaStatusStore(): EvolutionStatusStore {
   const prisma = getPrisma();
-  return prisma.$transaction(async (transaction) => {
-    const current = await transaction.message.findFirst({
-      where: { messageId },
-      select: { id: true, campaignId: true, status: true },
-    });
-    if (!current) return null;
-
-    const transition = transitionData(current.status, status, occurredAt);
-    if (!transition) return current.campaignId;
-
-    const updated = await transaction.message.updateMany({
-      where: { id: current.id, status: current.status },
-      data: transition.message,
-    });
-    if (updated.count !== 1) return current.campaignId;
-
-    if (Object.keys(transition.campaign).length > 0) {
-      await transaction.campaign.update({
-        where: { id: current.campaignId },
-        data: transition.campaign,
-      });
-    }
-
-    return current.campaignId;
-  });
+  return {
+    transaction: (work) =>
+      prisma.$transaction((transaction) =>
+        work({
+          findMessageByProviderId: async (messageId) => {
+            const message = await transaction.message.findFirst({
+              where: { messageId },
+              select: { id: true, campaignId: true, status: true },
+            });
+            return message
+              ? {
+                  ...message,
+                  status: fromPrismaStatus(message.status),
+                }
+              : null;
+          },
+          compareAndSetMessage: async (id, expectedStatus, update) => {
+            const updated = await transaction.message.updateMany({
+              where: { id, status: toPrismaStatus(expectedStatus) },
+              data: {
+                status: toPrismaStatus(update.status),
+                sentAt: update.sentAt,
+                deliveredAt: update.deliveredAt,
+                readAt: update.readAt,
+              },
+            });
+            return updated.count === 1;
+          },
+          incrementCampaign: async (campaignId, increments) => {
+            await transaction.campaign.update({
+              where: { id: campaignId },
+              data: {
+                sentCount:
+                  increments.sent === 1 ? { increment: 1 } : undefined,
+                deliveredCount:
+                  increments.delivered === 1 ? { increment: 1 } : undefined,
+                readCount:
+                  increments.read === 1 ? { increment: 1 } : undefined,
+              },
+            });
+          },
+        }),
+      ),
+  };
 }
 
 async function completeCampaignWhenFinished(campaignId: string): Promise<void> {
@@ -171,8 +181,14 @@ export async function POST(request: Request) {
   try {
     const occurredAt = eventTime(event.timestamp);
     const campaignIds = new Set<string>();
+    const statusStore = prismaStatusStore();
     for (const messageId of event.messageIds) {
-      const campaignId = await applyStatus(messageId, event.status, occurredAt);
+      const campaignId = await applyEvolutionMessageStatus(
+        statusStore,
+        messageId,
+        event.status,
+        occurredAt,
+      );
       if (campaignId) campaignIds.add(campaignId);
     }
     for (const campaignId of campaignIds) {
