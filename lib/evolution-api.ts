@@ -1,201 +1,215 @@
-import type {
-  CreateInstanceRequest,
-  CreateInstanceResponse,
-  EvolutionInstance,
-  QRCodeResponse,
-  ConnectionStatus,
-} from "@/types/evolution-api";
-import type { FetchInstancesResponseItem } from "@/types/evolution-api";
+export const DEMO_INSTANCE_NAME = "send-a-zap-demo";
 
-/**
- * Evolution API Client
- * Handles all communication with the Evolution API server
- *
- * NOTE: This should ONLY be used server-side (in API routes)
- * Never expose API keys to the client
- */
+export interface EvolutionConnection {
+  instanceName: string;
+  instanceId: string;
+  instanceToken: string;
+}
+
+export interface ConnectInstanceOptions {
+  webhookUrl?: string;
+  subscribe?: string[];
+}
+
+export interface EvolutionQRCode {
+  code?: string;
+  base64?: string;
+}
+
+export interface EvolutionConnectionStatus {
+  connected: boolean;
+  jid?: string;
+  status?: string;
+}
+
+type Fetch = typeof globalThis.fetch;
+
+function record(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function text(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+export function assertDemoInstanceTarget(
+  connection: EvolutionConnection,
+  targetInstanceId: string,
+): void {
+  if (connection.instanceId !== targetInstanceId) {
+    throw new Error(
+      `Refusing to target Evolution instance ${targetInstanceId}; the demo owns ${connection.instanceId}`,
+    );
+  }
+}
+
 export class EvolutionAPI {
-  private baseUrl: string;
-  private apiKey: string;
+  private readonly baseUrl: string;
+  private readonly adminKey: string;
+  private readonly fetch: Fetch;
 
-  constructor(baseUrl?: string, apiKey?: string) {
-    this.baseUrl = baseUrl || process.env.EVOLUTION_API_URL || "";
-    this.apiKey = apiKey || process.env.EVOLUTION_API_KEY || "";
+  constructor(baseUrl?: string, adminKey?: string, fetchImpl: Fetch = globalThis.fetch) {
+    this.baseUrl = (baseUrl || process.env.EVOLUTION_API_URL || "").replace(/\/+$/, "");
+    this.adminKey =
+      adminKey || process.env.EVOLUTION_GLOBAL_API_KEY || process.env.EVOLUTION_API_KEY || "";
+    this.fetch = fetchImpl;
 
-    console.log("[EVOLUTION-API] Initializing with URL:", this.baseUrl);
-    console.log("[EVOLUTION-API] API Key configured:", this.apiKey ? "Yes (length: " + this.apiKey.length + ")" : "No");
-
-    if (!this.baseUrl || !this.apiKey) {
+    if (!this.baseUrl || !this.adminKey) {
       throw new Error(
-        "Evolution API configuration missing. Set EVOLUTION_API_URL and EVOLUTION_API_KEY environment variables."
+        "Evolution Go configuration missing. Set EVOLUTION_API_URL and EVOLUTION_GLOBAL_API_KEY.",
       );
     }
   }
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit,
+    credential?: EvolutionConnection,
   ): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
-    console.log(`[EVOLUTION-API] ${options.method || "GET"} ${url}`);
-
-    const response = await fetch(url, {
+    const response = await this.fetch(`${this.baseUrl}${endpoint}`, {
       ...options,
-      headers: {
-        "Content-Type": "application/json",
-        apikey: this.apiKey,
-        ...options.headers,
-      },
+      headers: credential
+        ? {
+            "Content-Type": "application/json",
+            apikey: credential.instanceToken,
+            instanceId: credential.instanceId,
+            ...options.headers,
+          }
+        : options.headers,
     });
-
-    console.log(`[EVOLUTION-API] Response status: ${response.status}`);
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[EVOLUTION-API] Error response: ${errorText}`);
-      throw new Error(
-        `Evolution API error (${response.status}): ${errorText}`
-      );
+      throw new Error(`Evolution Go error (${response.status}): ${errorText}`);
     }
 
-    const data = await response.json();
-    console.log(`[EVOLUTION-API] Response data:`, JSON.stringify(data, null, 2));
-    return data;
+    return (await response.json()) as T;
   }
 
-  /**
-   * Create a new WhatsApp instance
-   */
   async createInstance(
-    data: CreateInstanceRequest
-  ): Promise<CreateInstanceResponse> {
-    return this.request<CreateInstanceResponse>("/instance/create", {
+    instanceName = DEMO_INSTANCE_NAME,
+    instanceToken = crypto.randomUUID(),
+  ): Promise<EvolutionConnection> {
+    const payload = await this.request<unknown>("/instance/create", {
       method: "POST",
-      body: JSON.stringify({
-        ...data,
-        integration: data.integration || "WHATSAPP-BAILEYS",
-        qrcode: data.qrcode !== false, // Default to true
-      }),
+      headers: { "Content-Type": "application/json", apikey: this.adminKey },
+      body: JSON.stringify({ name: instanceName, token: instanceToken }),
+    });
+    const data = record(record(payload).data ?? record(payload).instance);
+    const instanceId = text(data.id ?? data.instanceId);
+    const returnedToken = text(data.token ?? record(record(payload).hash).apikey);
+    const responseName = text(data.name ?? data.instanceName) ?? instanceName;
+
+    if (!instanceId || !returnedToken) {
+      throw new Error("Evolution Go create response did not include an instance id and token");
+    }
+
+    return { instanceName: responseName, instanceId, instanceToken: returnedToken };
+  }
+
+  async deleteInstance(
+    connection: EvolutionConnection,
+    targetInstanceId = connection.instanceId,
+  ): Promise<{ message?: string }> {
+    assertDemoInstanceTarget(connection, targetInstanceId);
+    return this.request(`/instance/delete/${encodeURIComponent(targetInstanceId)}`, {
+      method: "DELETE",
+      headers: { apikey: this.adminKey },
     });
   }
 
-  /**
-   * Get QR code for instance connection
-   */
-  async getQRCode(instanceName: string): Promise<QRCodeResponse> {
-    return this.request<QRCodeResponse>(
-      `/instance/connect/${instanceName}`
+  async connectInstance(
+    connection: EvolutionConnection,
+    options: ConnectInstanceOptions = {},
+  ): Promise<unknown> {
+    return this.request(
+      "/instance/connect",
+      {
+        method: "POST",
+        body: JSON.stringify({ ...options, immediate: true }),
+      },
+      connection,
     );
   }
 
-  /**
-   * Fetch all instances or a specific instance
-   * Evolution API v2 returns instances directly in an array with different field names
-   */
-  async fetchInstances(
-    instanceName?: string
-  ): Promise<EvolutionInstance[]> {
-    const params = instanceName
-      ? `?instanceName=${encodeURIComponent(instanceName)}`
-      : "";
-
-    try {
-      const response = await this.request<FetchInstancesResponseItem[] | EvolutionInstance[]>(
-        `/instance/fetchInstances${params}`
-      );
-
-      // Handle empty or invalid response
-      if (!response || !Array.isArray(response)) {
-        console.warn("Invalid response from fetchInstances:", response);
-        return [];
-      }
-
-      // Map Evolution API v2 response format to our internal format
-      // API returns: [{ name, connectionStatus, profilePicUrl, ... }]
-      // We normalize to: [{ instanceName, status, profilePictureUrl, ... }]
-      return response.map((item) => {
-        // Handle both v1 format (with instance wrapper) and v2 format (direct)
-        const data = 'instance' in item ? item.instance : item;
-        return {
-          instanceName: data.instanceName || data.name,
-          instanceId: data.instanceId || data.id,
-          status: data.status || data.connectionStatus,
-          owner: data.owner || data.ownerJid,
-          profileName: data.profileName,
-          profilePictureUrl: data.profilePictureUrl || data.profilePicUrl,
-          profileStatus: data.profileStatus,
-          apikey: data.apikey || data.token,
-          serverUrl: data.serverUrl,
-          integration: data.integration,
-        };
-      });
-    } catch (error) {
-      console.error("Error fetching instances:", error);
-      return [];
-    }
+  async getQRCode(connection: EvolutionConnection): Promise<EvolutionQRCode> {
+    const payload = await this.request<unknown>(
+      "/instance/qr",
+      { method: "GET" },
+      connection,
+    );
+    const root = record(payload);
+    const data = record(root.data);
+    return {
+      code: text(data.qrcode ?? data.code ?? root.qrcode ?? root.code),
+      base64: text(data.base64 ?? root.base64),
+    };
   }
 
-  /**
-   * Get connection status of an instance
-   */
+  async getPairingCode(
+    connection: EvolutionConnection,
+    phone: string,
+  ): Promise<{ pairingCode?: string }> {
+    const payload = await this.request<unknown>(
+      "/instance/pair",
+      { method: "POST", body: JSON.stringify({ phone }) },
+      connection,
+    );
+    const root = record(payload);
+    const data = record(root.data);
+    return { pairingCode: text(data.pairingCode ?? data.code ?? root.pairingCode) };
+  }
+
   async getConnectionStatus(
-    instanceName: string
-  ): Promise<ConnectionStatus> {
-    return this.request<ConnectionStatus>(
-      `/instance/connectionState/${instanceName}`
+    connection: EvolutionConnection,
+  ): Promise<EvolutionConnectionStatus> {
+    const payload = await this.request<unknown>(
+      "/instance/status",
+      { method: "GET" },
+      connection,
     );
+    const root = record(payload);
+    const data = record(root.data);
+    const status = text(data.status ?? root.status);
+    const connectedValue = data.connected ?? root.connected;
+    return {
+      connected: connectedValue === true || status === "open" || status === "connected",
+      jid: text(data.jid ?? root.jid),
+      status,
+    };
   }
 
-  /**
-   * Logout and disconnect instance
-   */
-  async logoutInstance(instanceName: string): Promise<{ status: string }> {
-    return this.request<{ status: string }>(
-      `/instance/logout/${instanceName}`,
-      {
-        method: "DELETE",
-      }
+  async sendText(
+    connection: EvolutionConnection,
+    number: string,
+    message: string,
+  ): Promise<string> {
+    const payload = await this.request<unknown>(
+      "/send/text",
+      { method: "POST", body: JSON.stringify({ number, text: message }) },
+      connection,
     );
+    const root = record(payload);
+    const data = record(root.data);
+    const info = record(data.Info ?? data.info);
+    const messageId = text(info.ID ?? info.id ?? data.messageId ?? root.messageId);
+    if (!messageId) {
+      throw new Error("Evolution Go send response did not include data.Info.ID");
+    }
+    return messageId;
   }
 
-  /**
-   * Delete instance completely
-   */
-  async deleteInstance(instanceName: string): Promise<{ status: string }> {
-    return this.request<{ status: string }>(
-      `/instance/delete/${instanceName}`,
-      {
-        method: "DELETE",
-      }
-    );
-  }
-
-  /**
-   * Restart instance
-   */
-  async restartInstance(instanceName: string): Promise<{ status: string }> {
-    return this.request<{ status: string }>(
-      `/instance/restart/${instanceName}`,
-      {
-        method: "PUT",
-      }
-    );
+  async checkHealth(): Promise<boolean> {
+    const response = await this.fetch(`${this.baseUrl}/server/ok`, { method: "GET" });
+    return response.ok;
   }
 }
 
-// Lazy-loaded singleton instance (avoids build-time initialization)
-let _evolutionAPI: EvolutionAPI | null = null;
+let evolutionAPI: EvolutionAPI | null = null;
 
 export function getEvolutionAPI(): EvolutionAPI {
-  if (!_evolutionAPI) {
-    _evolutionAPI = new EvolutionAPI();
-  }
-  return _evolutionAPI;
+  evolutionAPI ??= new EvolutionAPI();
+  return evolutionAPI;
 }
-
-// For backwards compatibility - but prefer getEvolutionAPI() for lazy loading
-export const evolutionAPI = {
-  get instance() {
-    return getEvolutionAPI();
-  },
-};

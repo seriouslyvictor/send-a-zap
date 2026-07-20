@@ -151,3 +151,16 @@ model Blocklist {
   @@map("blocklist")
   @@index([phone])
 }
+
+// Singleton credentials for the API-created demo WhatsApp Connection.
+// The instance token is server-side only and must never be returned to clients.
+model EvolutionConnection {
+  id            String   @id @default("demo") @db.VarChar(255)
+  instanceName  String   @map("instance_name") @db.VarChar(255)
+  instanceId    String   @unique @map("instance_id") @db.VarChar(255)
+  instanceToken String   @map("instance_token") @db.VarChar(255)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("evolution_connections")
+}
