@@ -23,6 +23,10 @@ export interface EvolutionConnectionStatus {
   status?: string;
 }
 
+export interface SendTextOptions {
+  messageId?: string;
+}
+
 type Fetch = typeof globalThis.fetch;
 type RandomUUID = () => string;
 
@@ -242,10 +246,18 @@ export class EvolutionAPI {
     connection: EvolutionConnection,
     number: string,
     message: string,
+    options: SendTextOptions = {},
   ): Promise<string> {
     const payload = await this.request<unknown>(
       "/send/text",
-      { method: "POST", body: JSON.stringify({ number, text: message }) },
+      {
+        method: "POST",
+        body: JSON.stringify({
+          number,
+          text: message,
+          ...(options.messageId ? { id: options.messageId } : {}),
+        }),
+      },
       connection,
     );
     const root = record(payload);

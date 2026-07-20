@@ -151,6 +151,32 @@ describe("EvolutionAPI", () => {
     });
   });
 
+  it("sends text with a caller-assigned id so the Message exists before the webhook", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+      jsonResponse({ data: { Info: { ID: "preassigned-message-id" } } }),
+    );
+    const api = new EvolutionAPI("http://evolution.test", "admin-key", fetch);
+
+    await expect(
+      api.sendText(connection, "5511999999999", "Oi!", {
+        messageId: "preassigned-message-id",
+      }),
+    ).resolves.toBe("preassigned-message-id");
+    expect(fetch).toHaveBeenCalledWith("http://evolution.test/send/text", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: "demo-instance-token",
+        instanceId: "demo-instance-id",
+      },
+      body: JSON.stringify({
+        number: "5511999999999",
+        text: "Oi!",
+        id: "preassigned-message-id",
+      }),
+    });
+  });
+
   it("checks process health without sending either credential", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
       new Response("Everything is ok!", { status: 200 }),
