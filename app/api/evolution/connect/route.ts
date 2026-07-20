@@ -36,14 +36,19 @@ async function getOrCreateConnection(
 
 async function connectionAndStatus(prisma: Prisma.TransactionClient) {
   let connection = await getOrCreateConnection(prisma);
+  const evolution = getEvolutionAPI();
 
   try {
     return {
       connection,
-      status: await getEvolutionAPI().getConnectionStatus(connection),
+      status: await evolution.getConnectionStatus(connection),
     };
   } catch (error) {
-    if (!(error instanceof EvolutionAPIError) || error.status !== 404) throw error;
+    if (!(error instanceof EvolutionAPIError)) throw error;
+    const providerInstanceMissing =
+      error.status === 404 ||
+      (error.status === 401 && !(await evolution.instanceExists(connection.instanceId)));
+    if (!providerInstanceMissing) throw error;
 
     await prisma.evolutionConnection.deleteMany({
       where: { id: EVOLUTION_CONNECTION_ID, instanceId: connection.instanceId },
@@ -51,7 +56,7 @@ async function connectionAndStatus(prisma: Prisma.TransactionClient) {
     connection = await getOrCreateConnection(prisma);
     return {
       connection,
-      status: await getEvolutionAPI().getConnectionStatus(connection),
+      status: await evolution.getConnectionStatus(connection),
     };
   }
 }

@@ -67,7 +67,14 @@ describe("EvolutionAPI", () => {
     const fetch = vi
       .fn<typeof globalThis.fetch>()
       .mockResolvedValueOnce(jsonResponse({ data: { connected: false } }))
-      .mockResolvedValueOnce(jsonResponse({ data: { qrcode: "raw-qr" } }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            qrcode: "data:image/png;base64,native-provider-image",
+            code: "raw-qr",
+          },
+        }),
+      )
       .mockResolvedValueOnce(jsonResponse({ data: { pairingCode: "1234-5678" } }))
       .mockResolvedValueOnce(jsonResponse({ data: { connected: true, jid: "551199@s.whatsapp.net" } }));
     const api = new EvolutionAPI("http://evolution.test", "admin-key", fetch);
@@ -76,7 +83,10 @@ describe("EvolutionAPI", () => {
       webhookUrl: "https://app.test/api/webhooks/evolution",
       subscribe: ["MESSAGE", "CONNECTION"],
     });
-    await expect(api.getQRCode(connection)).resolves.toEqual({ code: "raw-qr" });
+    await expect(api.getQRCode(connection)).resolves.toEqual({
+      code: "raw-qr",
+      base64: "data:image/png;base64,native-provider-image",
+    });
     await expect(api.getPairingCode(connection, "5511999999999")).resolves.toEqual({
       pairingCode: "1234-5678",
     });
@@ -139,6 +149,24 @@ describe("EvolutionAPI", () => {
     await expect(api.checkHealth()).resolves.toBe(true);
     expect(fetch).toHaveBeenCalledWith("http://evolution.test/server/ok", {
       method: "GET",
+    });
+  });
+
+  it("checks exact provider ownership from the admin instance list", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+      jsonResponse({
+        data: [
+          { id: "bella-production-id", token: "must-not-leak-into-result" },
+          { id: "demo-instance-id", token: "demo-token" },
+        ],
+      }),
+    );
+    const api = new EvolutionAPI("http://evolution.test", "admin-key", fetch);
+
+    await expect(api.instanceExists("demo-instance-id")).resolves.toBe(true);
+    expect(fetch).toHaveBeenCalledWith("http://evolution.test/instance/all", {
+      method: "GET",
+      headers: { apikey: "admin-key" },
     });
   });
 });

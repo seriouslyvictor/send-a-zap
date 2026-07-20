@@ -140,6 +140,20 @@ export class EvolutionAPI {
     });
   }
 
+  async instanceExists(instanceId: string): Promise<boolean> {
+    const payload = await this.request<unknown>("/instance/all", {
+      method: "GET",
+      headers: { apikey: this.adminKey },
+    });
+    const root = record(payload);
+    const instances = Array.isArray(root.data)
+      ? root.data
+      : Array.isArray(payload)
+        ? payload
+        : [];
+    return instances.some((instance) => text(record(instance).id) === instanceId);
+  }
+
   async connectInstance(
     connection: EvolutionConnection,
     options: ConnectInstanceOptions = {},
@@ -162,9 +176,13 @@ export class EvolutionAPI {
     );
     const root = record(payload);
     const data = record(root.data);
+    const providerQRCode = text(data.qrcode ?? root.qrcode);
+    const nativeImage = providerQRCode?.startsWith("data:image/")
+      ? providerQRCode
+      : text(data.base64 ?? root.base64);
     return {
-      code: text(data.qrcode ?? data.code ?? root.qrcode ?? root.code),
-      base64: text(data.base64 ?? root.base64),
+      code: text(data.code ?? root.code) ?? (nativeImage ? undefined : providerQRCode),
+      base64: nativeImage,
     };
   }
 
