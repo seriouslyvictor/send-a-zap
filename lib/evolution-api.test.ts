@@ -143,6 +143,15 @@ describe("EvolutionAPI", () => {
 });
 
 describe("assertDemoInstanceTarget", () => {
+  it("refuses a persisted connection that does not belong to the canonical demo", () => {
+    expect(() =>
+      assertDemoInstanceTarget(
+        { ...connection, instanceName: "bella-production" },
+        "demo-instance-id",
+      ),
+    ).toThrow("Refusing to target non-demo Evolution instance bella-production");
+  });
+
   it("refuses a lifecycle target that is not the persisted demo instance", () => {
     expect(() => assertDemoInstanceTarget(connection, "bella-production-id")).toThrow(
       "Refusing to target Evolution instance bella-production-id",

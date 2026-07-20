@@ -38,6 +38,11 @@ export function assertDemoInstanceTarget(
   connection: EvolutionConnection,
   targetInstanceId: string,
 ): void {
+  if (connection.instanceName !== DEMO_INSTANCE_NAME) {
+    throw new Error(
+      `Refusing to target non-demo Evolution instance ${connection.instanceName}`,
+    );
+  }
   if (connection.instanceId !== targetInstanceId) {
     throw new Error(
       `Refusing to target Evolution instance ${targetInstanceId}; the demo owns ${connection.instanceId}`,
