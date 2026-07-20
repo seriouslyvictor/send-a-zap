@@ -303,6 +303,18 @@ export class EvolutionAPI {
       throw new Error("Evolution message id factory returned an invalid WhatsApp message id");
     }
     await persistProviderMessageId(messageId);
+    return this.sendTrackedTextWithId(connection, number, message, messageId);
+  }
+
+  async sendTrackedTextWithId(
+    connection: EvolutionConnection,
+    number: string,
+    message: string,
+    messageId: string,
+  ): Promise<string> {
+    if (!EVOLUTION_MESSAGE_ID_PATTERN.test(messageId)) {
+      throw new Error("Evolution message id factory returned an invalid WhatsApp message id");
+    }
     const returnedMessageId = await this.sendText(connection, number, message, messageId);
     if (returnedMessageId !== messageId) {
       throw new Error(

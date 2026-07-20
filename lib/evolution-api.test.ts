@@ -186,6 +186,35 @@ describe("EvolutionAPI", () => {
     });
   });
 
+  it("reuses a persisted provider id when retrying a tracked send", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+      jsonResponse({ data: { Info: { ID: "3EB00123456789ABCDEF01" } } }),
+    );
+    const api = new EvolutionAPI("http://evolution.test", "admin-key", fetch);
+
+    await expect(
+      api.sendTrackedTextWithId(
+        connection,
+        "5511999999999",
+        "Oi!",
+        "3EB00123456789ABCDEF01",
+      ),
+    ).resolves.toBe("3EB00123456789ABCDEF01");
+    expect(fetch).toHaveBeenCalledWith("http://evolution.test/send/text", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: "demo-instance-token",
+        instanceId: "demo-instance-id",
+      },
+      body: JSON.stringify({
+        number: "5511999999999",
+        text: "Oi!",
+        id: "3EB00123456789ABCDEF01",
+      }),
+    });
+  });
+
   it("fails tracked sends when Evolution returns a different provider id", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
       jsonResponse({ data: { Info: { ID: "3EB0FFFFFFFFFFFFFFFFFF" } } }),
