@@ -1,278 +1,149 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { SaveButton } from "@/components/ui/save-button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useCallback, useEffect, useState } from "react";
+import { Loader2, Power, Smartphone } from "lucide-react";
+
+import { connectionDisplayNumber } from "@/lib/connection-display";
 import { Badge } from "@/components/ui/badge";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Loader2, Power } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface ConnectionStatusProps {
   onConnectClick: () => void;
-  refreshTrigger?: number; // Increment this to trigger a refresh
-  cancelTrigger?: number; // Increment this to cancel connection attempt
+  refreshTrigger?: number;
 }
 
 interface ConnectionData {
   connected: boolean;
   status: string;
-  profileName?: string;
-  profilePictureUrl?: string;
-  instanceName?: string;
   owner?: string;
 }
 
-export function ConnectionStatus({ onConnectClick, refreshTrigger, cancelTrigger }: ConnectionStatusProps) {
-  const [connectionData, setConnectionData] = useState<ConnectionData>({
+export function ConnectionStatus({
+  onConnectClick,
+  refreshTrigger,
+}: ConnectionStatusProps) {
+  const [connection, setConnection] = useState<ConnectionData>({
     connected: false,
     status: "checking",
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
-  const pollingInterval = useRef<NodeJS.Timeout | null>(null);
-  const isMounted = useRef(true);
-  const connectionPromiseResolve = useRef<(() => void) | null>(null);
-  const connectionPromiseReject = useRef<((reason?: Error) => void) | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // Fetch connection status
-  const checkStatus = async () => {
-    console.log("[ConnectionStatus] Checking status...");
+  const checkStatus = useCallback(async () => {
     try {
-      const response = await fetch("/api/evolution/status");
+      const response = await fetch("/api/evolution/status", { cache: "no-store" });
       const data = await response.json();
-      console.log("[ConnectionStatus] API Response:", data);
-
-      if (!isMounted.current) return;
-
-      if (data.success) {
-        console.log("[ConnectionStatus] Setting connected:", data.connected);
-        setConnectionData({
-          connected: data.connected || false,
-          status: data.status || "unknown",
-          profileName: data.profileName,
-          profilePictureUrl: data.profilePictureUrl,
-          instanceName: data.instanceName,
-          owner: data.owner,
-        });
-
-        // If we just connected and there's a pending connection promise, resolve it
-        if (data.connected && connectionPromiseResolve.current) {
-          connectionPromiseResolve.current();
-          connectionPromiseResolve.current = null;
-        }
-      } else {
-        console.log("[ConnectionStatus] API returned success: false", data.error);
-        setConnectionData({
-          connected: false,
-          status: "error",
-        });
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Status check failed");
       }
-    } catch (error) {
-      console.error("[ConnectionStatus] Error checking connection status:", error);
-      if (isMounted.current) {
-        setConnectionData({
-          connected: false,
-          status: "error",
-        });
-      }
+      setConnection({
+        connected: Boolean(data.connected),
+        status: data.status || "disconnected",
+        owner: data.owner,
+      });
+      setError(null);
+    } catch {
+      setConnection({ connected: false, status: "error" });
+      setError("Connection status unavailable");
     } finally {
-      if (isMounted.current) {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
     }
-  };
-
-  // Start polling status
-  const startPolling = () => {
-    checkStatus(); // Check immediately
-    pollingInterval.current = setInterval(checkStatus, 10000); // Poll every 10 seconds
-  };
-
-  // Stop polling
-  const stopPolling = () => {
-    if (pollingInterval.current) {
-      clearInterval(pollingInterval.current);
-      pollingInterval.current = null;
-    }
-  };
-
-  // Start polling on mount
-  useEffect(() => {
-    isMounted.current = true;
-    startPolling();
-    return () => {
-      isMounted.current = false;
-      stopPolling();
-      // Cleanup pending connection promises to prevent memory leaks
-      if (connectionPromiseReject.current) {
-        connectionPromiseReject.current(new Error("Component unmounted"));
-        connectionPromiseReject.current = null;
-        connectionPromiseResolve.current = null;
-      }
-    };
-    // startPolling is intentionally only called on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Refresh when trigger changes
   useEffect(() => {
-    if (refreshTrigger !== undefined && refreshTrigger > 0) {
-      checkStatus();
-    }
-  }, [refreshTrigger]);
+    void checkStatus();
+    const interval = window.setInterval(() => void checkStatus(), 5_000);
+    return () => window.clearInterval(interval);
+  }, [checkStatus]);
 
-  // Cancel connection attempt when modal is closed
   useEffect(() => {
-    if (cancelTrigger !== undefined && cancelTrigger > 0) {
-      console.log("[ConnectionStatus] Cancel triggered");
-      if (connectionPromiseReject.current) {
-        connectionPromiseReject.current(new Error("Connection cancelled by user"));
-        connectionPromiseReject.current = null;
-        connectionPromiseResolve.current = null;
-      }
-    }
-  }, [cancelTrigger]);
+    if (refreshTrigger) void checkStatus();
+  }, [checkStatus, refreshTrigger]);
 
-  // Handle disconnect
-  const handleDisconnect = async () => {
-    if (!confirm("Are you sure you want to disconnect your WhatsApp account?")) {
+  async function handleDisconnect() {
+    if (!window.confirm("Disconnect WhatsApp and delete this Connection from the server?")) {
       return;
     }
 
-    console.log("[ConnectionStatus] Starting disconnect...");
     setIsDisconnecting(true);
+    setError(null);
     try {
-      const response = await fetch("/api/evolution/disconnect", {
-        method: "POST",
-      });
-
-      console.log("[ConnectionStatus] Disconnect response status:", response.status);
+      const response = await fetch("/api/evolution/disconnect", { method: "POST" });
       const data = await response.json();
-      console.log("[ConnectionStatus] Disconnect response data:", data);
-
-      if (data.success) {
-        console.log("[ConnectionStatus] Disconnect successful, updating state...");
-        setConnectionData({
-          connected: false,
-          status: "disconnected",
-        });
-        // Refresh status after disconnect
-        console.log("[ConnectionStatus] Scheduling status check in 2 seconds...");
-        setTimeout(checkStatus, 2000);
-      } else {
-        console.error("[ConnectionStatus] Disconnect failed:", data.error);
-        alert("Failed to disconnect. Please try again.");
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Disconnect failed");
       }
-    } catch (error) {
-      console.error("[ConnectionStatus] Error disconnecting:", error);
-      alert("Error disconnecting. Please try again.");
+      setConnection({ connected: false, status: "not_found" });
+    } catch {
+      setError("Could not disconnect. Please try again.");
     } finally {
       setIsDisconnecting(false);
     }
-  };
+  }
 
-  // Loading state
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg">
-        <Loader2 className="h-4 w-4 animate-spin text-gray-600" />
-        <span className="text-sm text-gray-600">Checking connection...</span>
+      <Badge variant="outline" className="h-9 gap-2 px-3">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        Checking WhatsApp
+      </Badge>
+    );
+  }
+
+  if (!connection.connected) {
+    const isWaiting =
+      connection.status !== "not_found" &&
+      connection.status !== "disconnected" &&
+      connection.status !== "error";
+
+    return (
+      <div className="flex items-center gap-2">
+        {isWaiting && (
+          <Badge
+            variant="outline"
+            className="hidden h-9 gap-2 border-amber-300 bg-amber-50 px-3 text-amber-800 sm:flex"
+          >
+            <span className="h-2 w-2 animate-pulse rounded-full bg-amber-500" />
+            Waiting for QR scan
+          </Badge>
+        )}
+        <Button onClick={onConnectClick} className="bg-green-600 hover:bg-green-700">
+          <Smartphone className="h-4 w-4" />
+          {isWaiting ? "Show QR" : "Connect WhatsApp"}
+        </Button>
+        {error && <span className="sr-only">{error}</span>}
       </div>
     );
   }
 
-  // Handle connect button click - returns a Promise that resolves when connected
-  const handleConnectClick = async () => {
-    // Open the modal
-    onConnectClick();
-
-    // Return a Promise that resolves when connection is established, or rejects if cancelled
-    return new Promise<void>((resolve, reject) => {
-      connectionPromiseResolve.current = resolve;
-      connectionPromiseReject.current = reject;
-    });
-  };
-
-  // Disconnected state - Show prominent connect button
-  if (!connectionData.connected) {
-    return (
-        <SaveButton
-          text={{
-            idle: "Conectar Whatsapp",
-            saving: "Conectando...",
-            saved: "Conectado!"
-          }}
-          onSave={handleConnectClick}
-          enableConfetti={false}
-          className="px-6"
-        />
-    );
-  }
-
-  // Connected state - Show profile with dropdown menu
-  const profileName = connectionData.profileName || "User";
-  const initials = profileName
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-
-  // Extract phone number from owner (format: 55XXXXXXXXXXX@s.whatsapp.net)
-  // Remove country code (55 for Brazil) and format nicely
-  const getPhoneNumber = () => {
-    if (!connectionData.owner) return null;
-    const numberPart = connectionData.owner.split("@")[0];
-    // Remove Brazil country code (55) if present
-    if (numberPart.startsWith("55") && numberPart.length > 10) {
-      return numberPart.slice(2);
-    }
-    return numberPart;
-  };
-
-  const phoneNumber = getPhoneNumber();
+  const number = connectionDisplayNumber(connection.owner);
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button className="flex items-center gap-3 px-3 py-2 bg-green-50 hover:bg-green-100 rounded-lg transition-colors border border-green-200">
-          <Avatar className="h-10 w-10">
-            <AvatarImage src={connectionData.profilePictureUrl} alt={profileName} />
-            <AvatarFallback className="bg-green-600 text-white text-sm">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
-
-          <div className="flex flex-col items-start gap-1">
-            <div className="flex items-center gap-1">
-              <span className="text-sm font-medium text-gray-900">{profileName}</span>
-              {phoneNumber && (
-                <span className="text-sm text-gray-500">({phoneNumber})</span>
-              )}
-            </div>
-            <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 text-xs px-2 py-0">
-              <span className="w-2 h-2 rounded-full bg-green-500 mr-1.5"></span>
-              Connected
-            </Badge>
-          </div>
-        </button>
-      </DropdownMenuTrigger>
-
-      <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuItem
-          onClick={handleDisconnect}
-          disabled={isDisconnecting}
-          className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer"
-        >
-          <Power className="h-4 w-4 mr-2" />
-          {isDisconnecting ? "Disconnecting..." : "Disconnect"}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-1 pl-3">
+      <div className="hidden min-w-0 sm:block">
+        <p className="text-xs font-medium text-green-700">Connected as</p>
+        <p className="truncate text-sm font-semibold text-gray-900">
+          {number || "WhatsApp account"}
+        </p>
+      </div>
+      <Button
+        variant="destructive"
+        size="sm"
+        onClick={handleDisconnect}
+        disabled={isDisconnecting}
+        aria-label="Disconnect WhatsApp and delete Connection"
+      >
+        {isDisconnecting ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Power className="h-4 w-4" />
+        )}
+        <span className="hidden md:inline">
+          {isDisconnecting ? "Disconnecting" : "Disconnect"}
+        </span>
+      </Button>
+      {error && <span className="sr-only">{error}</span>}
+    </div>
   );
 }

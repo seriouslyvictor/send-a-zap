@@ -1,6 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AlertTriangle, CheckCircle2, Clock3, Loader2, RefreshCw } from "lucide-react";
+
+import { connectionDisplayNumber } from "@/lib/connection-display";
 import {
   Dialog,
   DialogContent,
@@ -16,254 +19,223 @@ interface ConnectModalProps {
   onConnected?: () => void;
 }
 
+type Step = "consent" | "pairing";
+
+const STATUS_POLL_MS = 3_000;
+const QR_REFRESH_MS = 45_000;
+
 export function ConnectModal({ open, onOpenChange, onConnected }: ConnectModalProps) {
+  const [step, setStep] = useState<Step>("consent");
   const [qrCode, setQrCode] = useState<string | null>(null);
-  const [status, setStatus] = useState<string>("Loading...");
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isConnected, setIsConnected] = useState<boolean>(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [status, setStatus] = useState("Waiting to start");
+  const [connectedNumber, setConnectedNumber] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const connectedRef = useRef(false);
 
-  const pollingInterval = useRef<NodeJS.Timeout | null>(null);
-  const pollingAttempts = useRef<number>(0);
-  const isMounted = useRef<boolean>(true);
-  const MAX_POLLING_ATTEMPTS = 40; // 40 attempts * 3 seconds = 2 minutes timeout
-
-  // Reset state when modal opens/closes
-  useEffect(() => {
-    if (open) {
-      isMounted.current = true;
-      pollingAttempts.current = 0;
-      setQrCode(null);
-      setIsConnected(false);
-      setErrorMessage(null);
-      setStatus("Loading...");
-      fetchQRCode();
-      startPollingStatus();
-    } else {
-      // Modal closed - cleanup without deleting instance
-      stopPolling();
-    }
-
-    return () => {
-      isMounted.current = false;
-      stopPolling();
-    };
-    // fetchQRCode and startPollingStatus are intentionally called only when modal opens
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  const fetchQRCode = async () => {
-    if (!isMounted.current) return;
-
+  const loadQRCode = useCallback(async () => {
     setIsLoading(true);
-    setStatus("Generating QR code...");
-    setErrorMessage(null);
+    setError(null);
+    setStatus("Generating a secure QR code…");
 
     try {
       const response = await fetch("/api/evolution/connect", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ consent: true }),
       });
-
       const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Could not create Connection");
+      }
 
-      // Check if component is still mounted
-      if (!isMounted.current) return;
-
-      // Handle already connected case
-      if (data.success && data.alreadyConnected) {
+      if (data.alreadyConnected) {
+        connectedRef.current = true;
         setIsConnected(true);
-        setStatus("Already connected!");
+        setConnectedNumber(connectionDisplayNumber(data.owner));
+        setStatus("Connected");
         onConnected?.();
-        setTimeout(() => {
-          if (isMounted.current) {
-            onOpenChange(false);
-          }
-        }, 1500);
         return;
       }
 
-      if (data.success && data.qrCode) {
-        // QR code is already a data URL from the API
-        setQrCode(data.qrCode);
-        setStatus("Scan QR code with WhatsApp");
-      } else if (data.success && !data.qrCode) {
-        setStatus("Waiting for QR code...");
-        setErrorMessage("QR code not available yet. Try refreshing.");
-      } else {
-        setStatus("Failed to generate QR code");
-        setErrorMessage(data.error || "Unknown error");
-        console.error("QR code error:", data.error);
-      }
-    } catch (error) {
-      console.error("Error fetching QR code:", error);
-      if (isMounted.current) {
-        setStatus("Error connecting to server");
-        setErrorMessage(error instanceof Error ? error.message : "Connection failed");
-      }
+      setQrCode(data.qrCode || null);
+      setStatus(data.qrCode ? "Waiting for QR scan" : "Waiting for a fresh QR code…");
+      if (!data.qrCode) setError("QR code is not ready yet. Retrying automatically.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not create Connection");
+      setStatus("Connection could not be started");
     } finally {
-      if (isMounted.current) {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
     }
-  };
+  }, [onConnected]);
 
-  const checkConnectionStatus = async () => {
-    if (!isMounted.current) return;
+  const checkStatus = useCallback(async () => {
+    if (connectedRef.current) return;
 
     try {
-      pollingAttempts.current += 1;
-
-      // Check if timeout reached
-      if (pollingAttempts.current >= MAX_POLLING_ATTEMPTS) {
-        stopPolling();
-        if (isMounted.current) {
-          setStatus("QR code expired");
-          setErrorMessage("Connection timeout. Please refresh the QR code.");
-        }
-        return;
-      }
-
-      const response = await fetch("/api/evolution/status");
+      const response = await fetch("/api/evolution/status", { cache: "no-store" });
       const data = await response.json();
-
-      if (!isMounted.current) return;
-
-      if (data.success && data.connected) {
+      if (response.ok && data.success && data.connected) {
+        connectedRef.current = true;
         setIsConnected(true);
-        setStatus(`Connected as ${data.profileName || "User"}`);
-        stopPolling();
-
-        // Call onConnected callback
+        setConnectedNumber(connectionDisplayNumber(data.owner));
+        setStatus("Connected");
+        setError(null);
         onConnected?.();
-
-        // Auto-close modal after 2 seconds
-        setTimeout(() => {
-          if (isMounted.current) {
-            onOpenChange(false);
-          }
-        }, 2000);
+      } else if (response.ok && data.success) {
+        setStatus("Waiting for QR scan");
       }
-    } catch (error) {
-      console.error("Error checking status:", error);
+    } catch {
+      // The next poll will retry; QR remains usable while status is temporarily unavailable.
     }
-  };
+  }, [onConnected]);
 
-  const startPollingStatus = useCallback(() => {
-    // Check immediately after a short delay (give QR code time to load)
-    setTimeout(() => {
-      if (isMounted.current) {
-        checkConnectionStatus();
-      }
-    }, 1000);
-
-    // Then poll every 3 seconds
-    pollingInterval.current = setInterval(() => {
-      if (isMounted.current) {
-        checkConnectionStatus();
-      }
-    }, 3000);
-    // checkConnectionStatus is intentionally only set up on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const stopPolling = () => {
-    if (pollingInterval.current) {
-      clearInterval(pollingInterval.current);
-      pollingInterval.current = null;
-    }
-  };
-
-  const handleRefreshQR = async () => {
-    pollingAttempts.current = 0;
-    setIsConnected(false);
+  useEffect(() => {
+    if (!open) return;
+    connectedRef.current = false;
+    setStep("consent");
     setQrCode(null);
-    setErrorMessage(null);
-    stopPolling();
-    await fetchQRCode();
-    startPollingStatus();
-  };
+    setStatus("Waiting to start");
+    setConnectedNumber(null);
+    setIsConnected(false);
+    setIsLoading(false);
+    setError(null);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || step !== "pairing" || isConnected) return;
+
+    const statusTimer = window.setInterval(() => void checkStatus(), STATUS_POLL_MS);
+    const qrTimer = window.setInterval(() => void loadQRCode(), QR_REFRESH_MS);
+    return () => {
+      window.clearInterval(statusTimer);
+      window.clearInterval(qrTimer);
+    };
+  }, [checkStatus, isConnected, loadQRCode, open, step]);
+
+  async function acceptAndConnect() {
+    setStep("pairing");
+    await loadQRCode();
+  }
+
+  function refreshQRCode() {
+    setQrCode(null);
+    void loadQRCode();
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-base sm:text-lg">Connect WhatsApp</DialogTitle>
-          <DialogDescription className="text-sm">
-            Scan the QR code below with your WhatsApp mobile app to connect your account.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        {step === "consent" ? (
+          <>
+            <DialogHeader>
+              <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+                <AlertTriangle className="h-6 w-6 text-red-700" />
+              </div>
+              <DialogTitle className="text-xl">Before you connect WhatsApp</DialogTitle>
+              <DialogDescription>
+                This demo sends real WhatsApp messages from the account you connect.
+              </DialogDescription>
+            </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Status */}
-          <div className="text-center">
-            <p className={`text-sm font-medium ${isConnected ? "text-green-600" : errorMessage ? "text-red-600" : "text-gray-700"}`}>
-              {status}
-            </p>
-            {errorMessage && (
-              <p className="text-xs text-red-500 mt-1">{errorMessage}</p>
-            )}
-          </div>
+            <div className="space-y-4">
+              <div className="rounded-lg border-2 border-red-300 bg-red-50 p-4 text-sm text-red-950">
+                <p className="font-bold">Only message yourself or known people who consented.</p>
+                <p className="mt-2 font-bold">Never connect your personal WhatsApp number.</p>
+              </div>
 
-          {/* QR Code */}
-          <div className="flex justify-center">
-            <div className="border-2 border-gray-200 rounded-lg p-4 bg-white">
-              {isLoading ? (
-                <div className="w-75 h-75 flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
-                </div>
-              ) : isConnected ? (
-                <div className="w-75 h-75 flex items-center justify-center bg-green-50">
-                  <div className="text-center">
-                    <div className="text-6xl mb-4">&#10003;</div>
-                    <p className="text-lg font-semibold text-green-600">Connected!</p>
-                  </div>
-                </div>
-              ) : qrCode ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={qrCode}
-                  alt="QR Code"
-                  className="w-75 h-75"
-                />
-              ) : (
-                <div className="w-75 h-75 flex items-center justify-center flex-col gap-2">
-                  <p className="text-sm text-gray-500">No QR code available</p>
-                  {errorMessage && (
-                    <Button variant="outline" size="sm" onClick={handleRefreshQR}>
-                      Try Again
-                    </Button>
-                  )}
-                </div>
-              )}
+              <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                <Clock3 className="mt-0.5 h-5 w-5 shrink-0" />
+                <p>
+                  For safety, the Idle Disconnect policy automatically removes an inactive
+                  Connection from the server. You can also disconnect it at any time.
+                </p>
+              </div>
+
+              <p className="text-sm text-muted-foreground">
+                Continuing confirms that you understand these messages are real and that every
+                recipient has agreed to receive them.
+              </p>
+
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <Button variant="outline" onClick={() => onOpenChange(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={acceptAndConnect}
+                  className="bg-red-700 text-white hover:bg-red-800"
+                >
+                  I understand — create Connection
+                </Button>
+              </div>
             </div>
-          </div>
+          </>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>Connect WhatsApp</DialogTitle>
+              <DialogDescription>
+                Open WhatsApp → Linked devices → Link a device, then scan this code.
+              </DialogDescription>
+            </DialogHeader>
 
-          {/* Instructions */}
-          <div className="space-y-2 text-sm text-gray-600">
-            <p className="font-semibold text-gray-900">Instructions:</p>
-            <ol className="list-decimal list-inside space-y-1">
-              <li>Open WhatsApp on your phone</li>
-              <li>Go to Settings → Linked Devices</li>
-              <li>Tap &quot;Link a Device&quot;</li>
-              <li>Scan this QR code</li>
-            </ol>
-          </div>
+            <div className="space-y-5">
+              <div
+                className={`rounded-lg border p-3 text-center text-sm font-medium ${
+                  isConnected
+                    ? "border-green-200 bg-green-50 text-green-800"
+                    : error
+                      ? "border-red-200 bg-red-50 text-red-800"
+                      : "border-amber-200 bg-amber-50 text-amber-800"
+                }`}
+                aria-live="polite"
+              >
+                {status}
+                {error && <p className="mt-1 text-xs font-normal">{error}</p>}
+              </div>
 
-          {/* Actions */}
-          <div className="flex flex-col sm:flex-row justify-end gap-3">
-            <Button
-              variant="outline"
-              onClick={handleRefreshQR}
-              disabled={isLoading}
-              className="w-full sm:w-auto"
-            >
-              Refresh QR
-            </Button>
-            <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
-              Cancel
-            </Button>
-          </div>
-        </div>
+              <div className="mx-auto flex aspect-square w-full max-w-75 items-center justify-center rounded-xl border-2 border-gray-200 bg-white p-4">
+                {isConnected ? (
+                  <div className="text-center text-green-700">
+                    <CheckCircle2 className="mx-auto mb-3 h-16 w-16" />
+                    <p className="font-semibold">
+                      Connected as {connectedNumber || "WhatsApp account"}
+                    </p>
+                  </div>
+                ) : isLoading ? (
+                  <Loader2 className="h-12 w-12 animate-spin text-green-600" />
+                ) : qrCode ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={qrCode} alt="WhatsApp Connection QR code" className="h-full w-full" />
+                ) : (
+                  <div className="text-center text-sm text-gray-500">
+                    <p>No QR code available yet.</p>
+                    <p className="mt-1">A fresh code will be requested automatically.</p>
+                  </div>
+                )}
+              </div>
+
+              {!isConnected && (
+                <p className="text-center text-xs text-muted-foreground">
+                  QR codes expire quickly. This screen refreshes the code automatically.
+                </p>
+              )}
+
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <Button variant="outline" onClick={() => onOpenChange(false)}>
+                  Close
+                </Button>
+                {!isConnected && (
+                  <Button variant="outline" onClick={refreshQRCode} disabled={isLoading}>
+                    <RefreshCw className="h-4 w-4" />
+                    Refresh QR now
+                  </Button>
+                )}
+              </div>
+            </div>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

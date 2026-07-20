@@ -3,11 +3,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   EvolutionAPI,
   assertDemoInstanceTarget,
+  createDemoInstanceName,
   type EvolutionConnection,
 } from "./evolution-api";
 
 const connection: EvolutionConnection = {
-  instanceName: "send-a-zap-demo",
+  instanceName: "send-a-zap-550e8400-e29b-41d4-a716-446655440000",
   instanceId: "demo-instance-id",
   instanceToken: "demo-instance-token",
 };
@@ -27,7 +28,7 @@ describe("EvolutionAPI", () => {
       jsonResponse({
         data: {
           id: "created-id",
-          name: "send-a-zap-demo",
+          name: connection.instanceName,
           token: "created-token",
         },
         message: "success",
@@ -35,15 +36,15 @@ describe("EvolutionAPI", () => {
     );
     const api = new EvolutionAPI("http://evolution.test/", "admin-key", fetch);
 
-    await expect(api.createInstance("send-a-zap-demo", "requested-token")).resolves.toEqual({
-      instanceName: "send-a-zap-demo",
+    await expect(api.createInstance(connection.instanceName, "requested-token")).resolves.toEqual({
+      instanceName: connection.instanceName,
       instanceId: "created-id",
       instanceToken: "created-token",
     });
     expect(fetch).toHaveBeenCalledWith("http://evolution.test/instance/create", {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: "admin-key" },
-      body: JSON.stringify({ name: "send-a-zap-demo", token: "requested-token" }),
+      body: JSON.stringify({ name: connection.instanceName, token: "requested-token" }),
     });
   });
 
@@ -160,5 +161,13 @@ describe("assertDemoInstanceTarget", () => {
 
   it("accepts the persisted demo instance id", () => {
     expect(() => assertDemoInstanceTarget(connection, "demo-instance-id")).not.toThrow();
+  });
+});
+
+describe("createDemoInstanceName", () => {
+  it("generates a distinct, recognizable name for every Connection", () => {
+    expect(createDemoInstanceName(() => "550e8400-e29b-41d4-a716-446655440000")).toBe(
+      "send-a-zap-550e8400-e29b-41d4-a716-446655440000",
+    );
   });
 });

@@ -62,7 +62,6 @@ export function ClientLayout({ children }: ClientLayoutProps): React.ReactElemen
   const [connectModalOpen, setConnectModalOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [modalCancelTrigger, setModalCancelTrigger] = useState(0);
 
   function handleConnected(): void {
     setRefreshTrigger(prev => prev + 1);
@@ -70,10 +69,6 @@ export function ClientLayout({ children }: ClientLayoutProps): React.ReactElemen
 
   function handleModalClose(isOpen: boolean): void {
     setConnectModalOpen(isOpen);
-    // If modal is closing (isOpen = false), trigger cancel
-    if (!isOpen) {
-      setModalCancelTrigger(prev => prev + 1);
-    }
   }
 
   function handleMenuItemClick(label: string): void {
@@ -162,7 +157,6 @@ export function ClientLayout({ children }: ClientLayoutProps): React.ReactElemen
                 <ConnectionStatus
                   onConnectClick={() => setConnectModalOpen(true)}
                   refreshTrigger={refreshTrigger}
-                  cancelTrigger={modalCancelTrigger}
                 />
               </div>
             </div>

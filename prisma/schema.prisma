@@ -71,7 +71,7 @@ model Campaign {
   columnMapping   Json?          @map("column_mapping")
 
   // WhatsApp instance used
-  instanceName    String         @default("whatsapp-main") @map("instance_name")
+  instanceName    String         @map("instance_name")
 
   // n8n execution tracking
   n8nExecutionId  String?        @map("n8n_execution_id")

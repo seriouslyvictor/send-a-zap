@@ -1,4 +1,4 @@
-export const DEMO_INSTANCE_NAME = "send-a-zap-demo";
+const DEMO_INSTANCE_PREFIX = "send-a-zap-";
 
 export interface EvolutionConnection {
   instanceName: string;
@@ -23,6 +23,21 @@ export interface EvolutionConnectionStatus {
 }
 
 type Fetch = typeof globalThis.fetch;
+type RandomUUID = () => string;
+
+export class EvolutionAPIError extends Error {
+  constructor(
+    readonly status: number,
+    details: string,
+  ) {
+    super(`Evolution Go error (${status}): ${details}`);
+    this.name = "EvolutionAPIError";
+  }
+}
+
+export function createDemoInstanceName(randomUUID: RandomUUID = crypto.randomUUID): string {
+  return `${DEMO_INSTANCE_PREFIX}${randomUUID()}`;
+}
 
 function record(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object"
@@ -38,7 +53,7 @@ export function assertDemoInstanceTarget(
   connection: EvolutionConnection,
   targetInstanceId: string,
 ): void {
-  if (connection.instanceName !== DEMO_INSTANCE_NAME) {
+  if (!connection.instanceName.startsWith(DEMO_INSTANCE_PREFIX)) {
     throw new Error(
       `Refusing to target non-demo Evolution instance ${connection.instanceName}`,
     );
@@ -87,14 +102,14 @@ export class EvolutionAPI {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Evolution Go error (${response.status}): ${errorText}`);
+      throw new EvolutionAPIError(response.status, errorText);
     }
 
     return (await response.json()) as T;
   }
 
   async createInstance(
-    instanceName = DEMO_INSTANCE_NAME,
+    instanceName = createDemoInstanceName(),
     instanceToken = crypto.randomUUID(),
   ): Promise<EvolutionConnection> {
     const payload = await this.request<unknown>("/instance/create", {

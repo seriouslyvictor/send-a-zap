@@ -10,6 +10,7 @@ import { Prisma } from "@prisma/client";
 import { CampaignStatus, MessageStatus } from "@prisma/client";
 
 import { getPrisma } from "@/lib/prisma";
+import { EVOLUTION_CONNECTION_ID } from "@/lib/evolution-connection";
 import { validatePhone } from "@/lib/phone-validator";
 import { renderMessage } from "@/lib/message-renderer";
 
@@ -33,7 +34,6 @@ interface CreateCampaignRequest {
     autoRetry?: boolean;
     maxRetries?: number;
     retryDelay?: number;
-    instanceName?: string;
   };
 }
 
@@ -155,9 +155,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Fetch blocklist for filtering
-    const blocklist = await getPrisma().blocklist.findMany({
-      select: { phone: true },
-    });
+    const [blocklist, connection] = await Promise.all([
+      getPrisma().blocklist.findMany({ select: { phone: true } }),
+      getPrisma().evolutionConnection.findUnique({
+        where: { id: EVOLUTION_CONNECTION_ID },
+      }),
+    ]);
+    if (!connection) {
+      return NextResponse.json(
+        { success: false, error: "Connect WhatsApp before creating a Campaign" },
+        { status: 409 },
+      );
+    }
     const blockedPhones = new Set(blocklist.map((b) => b.phone));
 
     // Process and validate contacts
@@ -272,7 +281,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           autoRetry: body.config?.autoRetry ?? false,
           maxRetries: body.config?.maxRetries ?? 3,
           retryDelay: body.config?.retryDelay ?? 5,
-          instanceName: body.config?.instanceName ?? "whatsapp-main",
+          instanceName: connection.instanceName,
         },
       });
 

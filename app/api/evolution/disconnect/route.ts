@@ -1,22 +1,41 @@
 import { NextResponse } from "next/server";
 
-import { getEvolutionAPI } from "@/lib/evolution-api";
+import {
+  EVOLUTION_CONNECTION_ID,
+  lockEvolutionConnection,
+} from "@/lib/evolution-connection";
+import { EvolutionAPIError, getEvolutionAPI } from "@/lib/evolution-api";
 import { getPrisma } from "@/lib/prisma";
-
-const CONNECTION_ID = "demo";
 
 async function disconnect() {
   const prisma = getPrisma();
-  const connection = await prisma.evolutionConnection.findUnique({
-    where: { id: CONNECTION_ID },
-  });
-  if (!connection) {
-    return NextResponse.json({ success: true, status: "not_found" });
-  }
+  const payload = await prisma.$transaction(
+    async (transaction) => {
+      await lockEvolutionConnection(transaction);
+      const connection = await transaction.evolutionConnection.findUnique({
+        where: { id: EVOLUTION_CONNECTION_ID },
+      });
+      if (!connection) return { success: true, status: "not_found" };
 
-  const result = await getEvolutionAPI().deleteInstance(connection, connection.instanceId);
-  await prisma.evolutionConnection.delete({ where: { id: CONNECTION_ID } });
-  return NextResponse.json({ success: true, status: "deleted", message: result.message });
+      let message: string | undefined;
+      try {
+        const result = await getEvolutionAPI().deleteInstance(
+          connection,
+          connection.instanceId,
+        );
+        message = result.message;
+      } catch (error) {
+        if (!(error instanceof EvolutionAPIError) || error.status !== 404) throw error;
+      }
+      await transaction.evolutionConnection.delete({
+        where: { id: EVOLUTION_CONNECTION_ID },
+      });
+      return { success: true, status: "deleted", message };
+    },
+    { maxWait: 30_000, timeout: 30_000 },
+  );
+
+  return NextResponse.json(payload);
 }
 
 export async function POST() {
