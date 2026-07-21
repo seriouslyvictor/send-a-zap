@@ -9,6 +9,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "worker": "tsx worker/campaign-worker.ts",
+    "events:prune": "tsx worker/prune-campaign-events.ts",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
