@@ -75,6 +75,19 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
+# This same image also runs the BullMQ campaign worker (`pnpm run worker`),
+# not just the Next.js web server (`node server.js`, the default CMD below).
+# The production compose file overrides the command for the worker service
+# while reusing this image, so the runner stage needs enough of the original
+# source tree - via tsx, not the standalone bundle - to run the worker script.
+RUN corepack enable pnpm
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/worker ./worker
+COPY --from=builder /app/lib ./lib
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/tsconfig.json ./tsconfig.json
+COPY --from=builder /app/package.json ./package.json
+
 # Set ownership to nextjs user
 RUN chown -R nextjs:nodejs /app
 

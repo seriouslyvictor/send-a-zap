@@ -6,7 +6,6 @@
 #
 # Subdomains (via Traefik):
 # - app.supernovasw.cloud → Next.js Frontend (Port 3000)
-# - n8n.supernovasw.cloud → n8n Workflow Engine (Port 5678)
 # - api.supernovasw.cloud → Evolution API (Port 8080)
 #
 # Internal Only (no external access):
@@ -79,66 +78,6 @@ services:
       retries: 3
     networks:
       - internal
-
-  # ===================================================================
-  # n8n - Workflow Automation Engine
-  # ===================================================================
-  # Accessible via: https://n8n.supernovasw.cloud
-  # ===================================================================
-  n8n:
-    image: docker.n8n.io/n8nio/n8n:latest
-    environment:
-      # Database configuration
-      - DB_TYPE=postgresdb
-      - DB_POSTGRESDB_HOST=postgres
-      - DB_POSTGRESDB_PORT=5432
-      - DB_POSTGRESDB_DATABASE=n8n
-      - DB_POSTGRESDB_USER=${POSTGRES_USER:-postgres}
-      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
-      # n8n configuration
-      - N8N_HOST=0.0.0.0
-      - N8N_PORT=5678
-      - N8N_PROTOCOL=https
-      - WEBHOOK_URL=${N8N_WEBHOOK_URL:-https://n8n.supernovasw.cloud/}
-      - GENERIC_TIMEZONE=${TIMEZONE:-America/Sao_Paulo}
-      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
-      # Authentication
-      - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE:-false}
-      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
-      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
-      # Execution settings
-      - EXECUTIONS_PROCESS=main
-      - EXECUTIONS_MODE=regular
-      # Evolution API (for n8n to call Evolution)
-      - EVOLUTION_API_URL=http://evolution-api:8080
-      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
-    volumes:
-      - n8n_data:/home/node/.n8n
-    deploy:
-      restart_policy:
-        condition: any
-      replicas: 1
-      labels:
-        # Traefik HTTPS router
-        - "traefik.enable=true"
-        - "traefik.http.routers.n8n.rule=Host(`n8n.supernovasw.cloud`)"
-        - "traefik.http.routers.n8n.entrypoints=websecure"
-        - "traefik.http.routers.n8n.tls.certresolver=letsencrypt"
-        - "traefik.http.services.n8n.loadbalancer.server.port=5678"
-        - "traefik.docker.network=Supernet"
-        # HTTP to HTTPS redirect
-        - "traefik.http.routers.n8n-http.rule=Host(`n8n.supernovasw.cloud`)"
-        - "traefik.http.routers.n8n-http.entrypoints=web"
-        - "traefik.http.routers.n8n-http.middlewares=redirect-to-https"
-        - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5678/healthz"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    networks:
-      - internal
-      - Supernet
 
   # ===================================================================
   # Evolution API - WhatsApp Integration
@@ -269,9 +208,7 @@ services:
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/whatsapp_automation?schema=public
-      - N8N_API_URL=http://n8n:5678
-      - N8N_API_KEY=${N8N_API_KEY}
-      - N8N_WEBHOOK_URL=http://n8n:5678
+      - REDIS_URL=redis://redis:6379
       - EVOLUTION_API_URL=http://evolution-api:8080
       - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
     deploy:
@@ -294,6 +231,40 @@ services:
       - internal
       - Supernet
 
+  # ===================================================================
+  # Worker - BullMQ Campaign Runner
+  # ===================================================================
+  # Runs the same image as the `nextjs` service with a different command,
+  # processing campaign ticks off the Redis queue. Internal-only: never
+  # exposed via Traefik, and restarts independently of the web service.
+  # ===================================================================
+  worker:
+    image: seriouslyvictor/whatsapp-nextjs:latest
+    command: ["pnpm", "run", "worker"]
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/whatsapp_automation?schema=public
+      - REDIS_URL=redis://redis:6379
+      - EVOLUTION_API_URL=http://evolution-api:8080
+      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - CAMPAIGN_EVENT_RETENTION_DAYS=${CAMPAIGN_EVENT_RETENTION_DAYS:-30}
+      - QUEUE_DASHBOARD_HOST=${QUEUE_DASHBOARD_HOST:-127.0.0.1}
+      - QUEUE_DASHBOARD_PORT=${QUEUE_DASHBOARD_PORT:-3001}
+      - QUEUE_DASHBOARD_USERNAME=${QUEUE_DASHBOARD_USERNAME:-admin}
+      - QUEUE_DASHBOARD_PASSWORD=${QUEUE_DASHBOARD_PASSWORD}
+    # The shared image bakes a Next.js HTTP healthcheck (wget :3000/api/health).
+    # The worker serves no HTTP, so disable it here to avoid a permanently
+    # "unhealthy" status; nothing gates on the worker's health.
+    healthcheck:
+      disable: true
+    deploy:
+      restart_policy:
+        condition: any
+      replicas: 1
+    networks:
+      - internal
+
 # ===================================================================
 # Volumes - Persistent Data Storage
 # ===================================================================
@@ -301,7 +272,6 @@ volumes:
   postgres_data:
   pgadmin_data:
   redis_data:
-  n8n_data:
   evolution_instances:
 
 # ===================================================================

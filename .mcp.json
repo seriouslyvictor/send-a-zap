@@ -6,10 +6,6 @@
         "shadcn@latest",
         "mcp"
       ]
-    },
-    "n8n-mcp": {
-      "type": "http",
-      "url": "http://localhost:5678/mcp-server/http"
     }
   }
 }
