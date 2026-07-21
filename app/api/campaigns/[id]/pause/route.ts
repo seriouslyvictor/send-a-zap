@@ -16,20 +16,13 @@ interface RouteParams {
  * POST /api/campaigns/[id]/pause
  * Pause a running campaign
  *
- * REFACTORED: Business logic moved to n8n workflow
- * API Route responsibilities:
- * 1. Validate campaign exists and is RUNNING
- * 2. Set pause flag (status = PAUSED) to signal n8n
- * 3. Return success response
+ * This route only flips Campaign.status to PAUSED — it makes no network
+ * call to the runner. The in-app BullMQ runner's next tick claims the
+ * campaign via the executor, observes the PAUSED status, and ends the tick
+ * chain on its own, so no extra coordination is needed here.
  *
- * n8n workflow responsibilities (business logic):
- * - Detect pause flag (check campaign.status before each batch)
- * - Stop processing new messages
- * - Wait for in-flight messages to complete
- * - Revert QUEUED messages back to PENDING
- * - Confirm pause completion
- *
- * Database flag approach: Campaign status acts as coordination flag
+ * Database flag approach: Campaign status acts as the coordination flag
+ * between this route and the runner.
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
@@ -60,7 +53,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Set pause flag (n8n will detect this and handle cleanup)
+    // Set pause flag (the runner's next tick will detect this and stop)
     const updatedCampaign = await getPrisma().campaign.update({
       where: { id },
       data: {
@@ -68,9 +61,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       },
     });
 
-    // Note: Message state reversal is now handled by n8n workflow
-    // The workflow checks campaign.status before each batch and stops processing
-    // when it detects PAUSED status, then reverts QUEUED messages to PENDING
+    // Note: QUEUED messages are reverted to PENDING by the runner executor's
+    // initialize step the next time this campaign is started or resumed.
 
     return NextResponse.json({
       success: true,

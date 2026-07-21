@@ -38,90 +38,92 @@ enum MessageStatus {
 // Campaign Model - Stores campaign configuration and stats
 // ===================================================================
 model Campaign {
-  id              String         @id @default(uuid())
-  name            String         @db.VarChar(255)
-  messageTemplate String         @map("message_template") @db.Text
-  imageUrl        String?        @map("image_url")
+  id              String  @id @default(uuid())
+  name            String  @db.VarChar(255)
+  messageTemplate String  @map("message_template") @db.Text
+  imageUrl        String? @map("image_url")
 
   // Batch configuration
-  batchSize       Int            @default(50) @map("batch_size")
-  messageDelay    Int            @default(2) @map("message_delay")     // seconds between messages
-  batchDelay      Int            @default(30) @map("batch_delay")      // seconds between batches
+  batchSize    Int @default(50) @map("batch_size")
+  messageDelay Int @default(2) @map("message_delay") // seconds between messages
+  batchDelay   Int @default(30) @map("batch_delay") // seconds between batches
 
   // Retry configuration
-  autoRetry       Boolean        @default(false) @map("auto_retry")
-  maxRetries      Int            @default(3) @map("max_retries")
-  retryDelay      Int            @default(5) @map("retry_delay")       // minutes
+  autoRetry  Boolean @default(false) @map("auto_retry")
+  maxRetries Int     @default(3) @map("max_retries")
+  retryDelay Int     @default(5) @map("retry_delay") // minutes
 
   // Status tracking
-  status          CampaignStatus @default(DRAFT)
-  totalContacts   Int            @default(0) @map("total_contacts")
-  sentCount       Int            @default(0) @map("sent_count")
-  deliveredCount  Int            @default(0) @map("delivered_count")
-  readCount       Int            @default(0) @map("read_count")
-  failedCount     Int            @default(0) @map("failed_count")
+  status         CampaignStatus @default(DRAFT)
+  totalContacts  Int            @default(0) @map("total_contacts")
+  sentCount      Int            @default(0) @map("sent_count")
+  deliveredCount Int            @default(0) @map("delivered_count")
+  readCount      Int            @default(0) @map("read_count")
+  failedCount    Int            @default(0) @map("failed_count")
 
   // Timestamps
-  createdAt       DateTime       @default(now()) @map("created_at")
-  updatedAt       DateTime       @updatedAt @map("updated_at")
-  startedAt       DateTime?      @map("started_at")
-  completedAt     DateTime?      @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  startedAt   DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
 
   // Column mapping configuration (stored as JSON)
-  columnMapping   Json?          @map("column_mapping")
+  columnMapping Json? @map("column_mapping")
 
   // WhatsApp instance used
-  instanceName    String         @map("instance_name")
+  instanceName String @map("instance_name")
 
-  // n8n execution tracking
-  n8nExecutionId  String?        @map("n8n_execution_id")
+  // Campaign runner correlation
+  runId String? @map("run_id")
 
   // Relations
-  messages        Message[]
+  messages Message[]
+  events   CampaignEvent[]
 
-  @@map("campaigns")
   @@index([status])
   @@index([createdAt])
+  @@map("campaigns")
 }
 
 // ===================================================================
 // Message Model - Individual messages within a campaign
 // ===================================================================
 model Message {
-  id              String        @id @default(uuid())
-  campaignId      String        @map("campaign_id")
+  id         String @id @default(uuid())
+  campaignId String @map("campaign_id")
 
   // Contact information
-  phone           String        @db.VarChar(20)
-  name            String?       @db.VarChar(255)
-  customData      Json?         @map("custom_data")    // Dynamic fields from XLS
+  phone      String  @db.VarChar(20)
+  name       String? @db.VarChar(255)
+  customData Json?   @map("custom_data") // Dynamic fields from XLS
 
   // Rendered message (after placeholder replacement)
-  renderedMessage String?       @map("rendered_message") @db.Text
+  renderedMessage String? @map("rendered_message") @db.Text
 
   // Status tracking
-  status          MessageStatus @default(PENDING)
-  messageId       String?       @map("message_id")     // Evolution API message ID
+  status    MessageStatus @default(PENDING)
+  messageId String?       @map("message_id") // Evolution API message ID
 
   // Timestamps
-  createdAt       DateTime      @default(now()) @map("created_at")
-  sentAt          DateTime?     @map("sent_at")
-  deliveredAt     DateTime?     @map("delivered_at")
-  readAt          DateTime?     @map("read_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  sentAt      DateTime? @map("sent_at")
+  deliveredAt DateTime? @map("delivered_at")
+  readAt      DateTime? @map("read_at")
 
   // Error handling
-  errorMessage    String?       @map("error_message") @db.Text
-  retryCount      Int           @default(0) @map("retry_count")
-  lastRetryAt     DateTime?     @map("last_retry_at")
+  errorMessage String?   @map("error_message") @db.Text
+  retryCount   Int       @default(0) @map("retry_count")
+  lastRetryAt  DateTime? @map("last_retry_at")
 
   // Relations
-  campaign        Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaign Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  events   CampaignEvent[]
 
-  @@map("messages")
   @@index([campaignId])
   @@index([status])
   @@index([phone])
   @@index([messageId])
+  @@map("messages")
 }
 
 // ===================================================================
@@ -142,14 +144,35 @@ model Template {
 // Blocklist Model - Contacts that should not receive messages
 // ===================================================================
 model Blocklist {
-  id        String   @id @default(uuid())
-  phone     String   @unique @db.VarChar(20)
-  name      String?  @db.VarChar(255)
-  reason    String?  @db.VarChar(255)
-  addedAt   DateTime @default(now()) @map("added_at")
+  id      String   @id @default(uuid())
+  phone   String   @unique @db.VarChar(20)
+  name    String?  @db.VarChar(255)
+  reason  String?  @db.VarChar(255)
+  addedAt DateTime @default(now()) @map("added_at")
 
-  @@map("blocklist")
   @@index([phone])
+  @@map("blocklist")
+}
+
+// Append-only audit trail for Campaign runner lifecycle events.
+model CampaignEvent {
+  id         String   @id @default(uuid())
+  campaignId String   @map("campaign_id")
+  messageId  String?  @map("message_id")
+  runId      String   @map("run_id")
+  type       String   @db.VarChar(64)
+  level      String   @db.VarChar(16)
+  message    String   @db.Text
+  data       Json
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  campaign        Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignMessage Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([campaignId, createdAt])
+  @@index([runId, createdAt])
+  @@index([createdAt])
+  @@map("campaign_events")
 }
 
 // Singleton credentials for the API-created demo WhatsApp Connection.

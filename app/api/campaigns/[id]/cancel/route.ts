@@ -16,21 +16,13 @@ interface RouteParams {
  * POST /api/campaigns/[id]/cancel
  * Cancel a paused campaign
  *
- * REFACTORED: Business logic moved to n8n workflow
- * API Route responsibilities:
- * 1. Validate campaign exists and is PAUSED
- * 2. Set cancel flag (status = CANCELLED) to signal n8n
- * 3. Return success response
+ * This route only flips Campaign.status to CANCELLED — it makes no network
+ * call to the runner. Since the campaign is already PAUSED there is no
+ * active tick chain to signal; if the campaign is later started again, the
+ * runner executor's initialize step will reconcile message state.
  *
- * n8n workflow responsibilities (business logic):
- * - Detect cancel flag (if workflow is still running)
- * - Stop processing immediately
- * - Mark all QUEUED/PENDING messages as CANCELLED or FAILED
- * - Clean up resources
- * - Log cancellation
- *
- * Note: Cancellation is more aggressive than pause - no waiting for in-flight messages
- * Database flag approach: Campaign status acts as coordination flag
+ * Database flag approach: Campaign status acts as the coordination flag
+ * between this route and the runner.
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
@@ -60,7 +52,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Set cancel flag (n8n will detect this if workflow is still active)
+    // Set cancel flag. The campaign is already PAUSED, so there's no
+    // in-flight tick chain to signal.
     const updatedCampaign = await getPrisma().campaign.update({
       where: { id },
       data: {
@@ -68,10 +61,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       },
     });
 
-    // Note: Message cleanup is now handled by n8n workflow or left as-is
-    // Since campaign is PAUSED, there's no active workflow to signal
-    // Messages remain in their current state (PENDING, QUEUED, SENT, etc.)
-    // n8n can optionally clean up messages if needed
+    // Note: Messages remain in their current state (PENDING, QUEUED, SENT,
+    // etc.). QUEUED messages are reconciled back to PENDING by the runner
+    // executor's initialize step if this campaign is ever restarted.
 
     return NextResponse.json({
       success: true,
