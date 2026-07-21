@@ -15,7 +15,10 @@ import {
   type CampaignTick,
 } from "@/lib/campaign-runner";
 
-type CampaignTickProcessor = (tick: CampaignTick) => Promise<unknown>;
+type CampaignTickProcessor = (
+  tick: CampaignTick,
+  attempt: number,
+) => Promise<unknown>;
 
 type CampaignWorkerOptions = {
   processor: CampaignTickProcessor;
@@ -37,7 +40,8 @@ export function createCampaignWorker({
 
   return new Worker<CampaignTick, unknown, "tick">(
     queueName,
-    async (job: Job<CampaignTick, unknown, "tick">) => processor(job.data),
+    async (job: Job<CampaignTick, unknown, "tick">) =>
+      processor(job.data, job.attemptsMade + 1),
     options,
   );
 }
