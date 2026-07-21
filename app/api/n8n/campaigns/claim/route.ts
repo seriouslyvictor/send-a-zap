@@ -11,9 +11,12 @@ export async function POST(request: Request) {
       campaignId?: string;
       executionId?: string;
     };
-    if (!body.campaignId) {
+    if (!body.campaignId || !body.executionId) {
       return NextResponse.json(
-        { error: "validation_error", message: "campaignId is required" },
+        {
+          error: "validation_error",
+          message: "campaignId and executionId are required",
+        },
         { status: 400 },
       );
     }

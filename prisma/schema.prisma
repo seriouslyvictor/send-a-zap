@@ -73,8 +73,8 @@ model Campaign {
   // WhatsApp instance used
   instanceName    String         @map("instance_name")
 
-  // n8n execution tracking
-  n8nExecutionId  String?        @map("n8n_execution_id")
+  // Campaign runner correlation
+  runId           String?        @map("run_id")
 
   // Relations
   messages        Message[]

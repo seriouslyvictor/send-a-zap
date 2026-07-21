@@ -39,7 +39,7 @@ async function lockCampaign(transaction: Transaction, campaignId: string) {
 
 export async function initializeCampaignExecution(
   campaignId: string,
-  executionId?: string,
+  runId: string,
 ) {
   return getPrisma().$transaction(async (transaction) => {
     await lockCampaign(transaction, campaignId);
@@ -99,7 +99,7 @@ export async function initializeCampaignExecution(
         status: CampaignStatus.RUNNING,
         startedAt: campaign.startedAt ?? new Date(),
         completedAt: null,
-        n8nExecutionId: executionId,
+        runId,
         ...(campaign.status === CampaignStatus.FAILED
           ? { failedCount: 0 }
           : {}),
@@ -122,7 +122,7 @@ export async function initializeCampaignExecution(
 
 export async function claimNextCampaignMessage(
   campaignId: string,
-  executionId?: string,
+  runId: string,
 ): Promise<CampaignClaim> {
   return getPrisma().$transaction(async (transaction) => {
     await lockCampaign(transaction, campaignId);
@@ -146,11 +146,8 @@ export async function claimNextCampaignMessage(
       return { state, campaignId };
     }
 
-    if (executionId && campaign.n8nExecutionId !== executionId) {
-      await transaction.campaign.update({
-        where: { id: campaignId },
-        data: { n8nExecutionId: executionId },
-      });
+    if (campaign.runId !== runId) {
+      return { state: "stopped", campaignId };
     }
 
     let message = await transaction.message.findFirst({
@@ -419,7 +416,7 @@ export async function failClaimedCampaignMessage(
 }
 
 export async function failCampaignExecution(
-  target: { campaignId?: string; executionId?: string },
+  target: { campaignId?: string; runId: string },
   errorMessage: string,
 ) {
   const prisma = getPrisma();
@@ -427,7 +424,7 @@ export async function failCampaignExecution(
     target.campaignId ??
     (
       await prisma.campaign.findFirst({
-        where: { n8nExecutionId: target.executionId },
+        where: { runId: target.runId },
         select: { id: true },
       })
     )?.id;
@@ -440,6 +437,13 @@ export async function failCampaignExecution(
   }
   return prisma.$transaction(async (transaction) => {
     await lockCampaign(transaction, campaignId);
+    const campaign = await transaction.campaign.findUnique({
+      where: { id: campaignId },
+      select: { runId: true },
+    });
+    if (!campaign || campaign.runId !== target.runId) {
+      return { count: 0 };
+    }
     await transaction.message.updateMany({
       where: { campaignId, status: MessageStatus.QUEUED },
       data: { status: MessageStatus.PENDING },

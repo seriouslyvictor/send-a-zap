@@ -131,7 +131,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           id: updatedCampaign!.id,
           name: updatedCampaign!.name,
           status: updatedCampaign!.status,
-          n8nExecutionId: updatedCampaign!.n8nExecutionId,
+          runId: updatedCampaign!.runId,
           startedAt: updatedCampaign!.startedAt,
           pendingMessages: pendingCount,
         },

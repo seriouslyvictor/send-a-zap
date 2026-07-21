@@ -9,18 +9,18 @@ export async function POST(request: Request) {
       executionId?: string;
       errorMessage?: string;
     };
-    if (!body.campaignId && !body.executionId) {
+    if (!body.executionId) {
       return NextResponse.json(
         {
           error: "validation_error",
-          message: "campaignId or executionId is required",
+          message: "executionId is required",
         },
         { status: 400 },
       );
     }
     return NextResponse.json(
       await failCampaignExecution(
-        { campaignId: body.campaignId, executionId: body.executionId },
+        { campaignId: body.campaignId, runId: body.executionId },
         body.errorMessage ?? "Unhandled n8n workflow failure",
       ),
     );
