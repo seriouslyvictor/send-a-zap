@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Menu } from 'lucide-react';
+import { signOut } from 'next-auth/react';
+import { LogOut, Menu } from 'lucide-react';
 
 import { ThemeProvider } from "@/components/theme-provider";
 import { AnimatedThemeToggle } from "@/components/ui/animated-theme-toggle";
@@ -84,6 +85,21 @@ export function ClientLayout({ children }: ClientLayoutProps): React.ReactElemen
     item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
   )?.label;
 
+  // The login page renders standalone — no app chrome (nav, connection status),
+  // whose data calls would 401 for an unauthenticated visitor anyway.
+  if (pathname === "/login") {
+    return (
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="light"
+        enableSystem={false}
+        disableTransitionOnChange
+      >
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">{children}</div>
+      </ThemeProvider>
+    );
+  }
+
   return (
     <ThemeProvider
       attribute="class"
@@ -158,6 +174,15 @@ export function ClientLayout({ children }: ClientLayoutProps): React.ReactElemen
                   onConnectClick={() => setConnectModalOpen(true)}
                   refreshTrigger={refreshTrigger}
                 />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={() => void signOut({ callbackUrl: "/login" })}
+                  aria-label="Sair"
+                >
+                  <LogOut className="h-5 w-5" />
+                </Button>
               </div>
             </div>
           </div>
