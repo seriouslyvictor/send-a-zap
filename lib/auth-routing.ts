@@ -22,12 +22,15 @@ export const LOGIN_PATH = "/login";
  * - the login page itself,
  * - the Auth.js endpoints that perform the login/logout,
  * - the Evolution webhook receiver, which the Evolution Go server calls with
- *   its own shared-secret rather than an Operator session.
+ *   its own shared-secret rather than an Operator session,
+ * - the maintenance endpoints, which an external scheduler calls with its
+ *   own shared-secret (see MAINTENANCE_SECRET) — a scheduler has no session.
  */
 function isPublicPath(pathname: string): boolean {
   if (pathname === LOGIN_PATH) return true;
   if (pathname.startsWith("/api/auth")) return true;
   if (pathname === "/api/webhooks/evolution") return true;
+  if (pathname.startsWith("/api/maintenance/")) return true;
   return false;
 }
 

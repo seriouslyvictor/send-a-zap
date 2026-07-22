@@ -10,6 +10,7 @@ describe("decideAuthAction", () => {
       "/api/auth/callback/credentials",
       "/api/auth/session",
       "/api/webhooks/evolution",
+      "/api/maintenance/idle-disconnect",
     ])("allows %s when logged out", (pathname) => {
       expect(decideAuthAction(pathname, false)).toEqual({ type: "allow" });
     });

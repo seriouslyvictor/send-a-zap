@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
 import { decideAuthAction, LOGIN_PATH } from "@/lib/auth-routing";
+import { recordOperatorActivity } from "@/lib/connection-activity";
+import { getPrisma } from "@/lib/prisma";
 
 /**
  * The auth gate. Runs on every request matched below (Next.js 16 "proxy",
@@ -14,6 +16,13 @@ export default auth((req) => {
 
   switch (decision.type) {
     case "allow":
+      // Best-effort activity stamp for the demo Connection idle timer (#17).
+      // req.auth is only truthy for an authenticated Operator, so public/
+      // unauthenticated allow-paths (login, webhooks, maintenance) never hit
+      // this. Fire-and-forget: must never block or fail the request.
+      if (req.auth) {
+        recordOperatorActivity(getPrisma()).catch(() => {});
+      }
       return NextResponse.next();
     case "redirect-to-login": {
       const loginUrl = new URL(LOGIN_PATH, req.nextUrl.origin);

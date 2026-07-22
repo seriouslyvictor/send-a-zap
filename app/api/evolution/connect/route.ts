@@ -29,8 +29,8 @@ async function getOrCreateConnection(
   const created = await getEvolutionAPI().createInstance(createDemoInstanceName());
   return prisma.evolutionConnection.upsert({
     where: { id: EVOLUTION_CONNECTION_ID },
-    create: { id: EVOLUTION_CONNECTION_ID, ...created },
-    update: created,
+    create: { id: EVOLUTION_CONNECTION_ID, ...created, lastActivityAt: new Date() },
+    update: { ...created, lastActivityAt: new Date() },
   });
 }
 

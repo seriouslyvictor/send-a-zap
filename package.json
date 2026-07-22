@@ -10,6 +10,7 @@
     "start": "next start",
     "worker": "tsx worker/campaign-worker.ts",
     "events:prune": "tsx worker/prune-campaign-events.ts",
+    "idle:disconnect": "tsx worker/idle-disconnect.ts",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
