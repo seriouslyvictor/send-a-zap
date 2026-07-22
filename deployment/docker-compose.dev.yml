@@ -1,39 +1,24 @@
 name: send-a-zap-dev
 
-# Local development mirrors the target VPS topology: this project owns only
-# Next.js and n8n. PostgreSQL and Evolution Go are shared services running on
-# the host and are reached from Docker through host.docker.internal.
+# Local development mirrors the target VPS topology: this project owns
+# Next.js, the BullMQ campaign worker, and Redis. PostgreSQL and Evolution Go
+# are shared services running on the host and are reached from Docker through
+# host.docker.internal.
 services:
-  n8n:
-    container_name: send_a_zap_n8n_dev
-    image: docker.n8n.io/n8nio/n8n:2.30.5
+  redis:
+    container_name: send_a_zap_redis_dev
+    image: redis:7-alpine
     restart: unless-stopped
+    command: redis-server --appendonly yes
     ports:
-      - "5678:5678"
-    environment:
-      DB_TYPE: postgresdb
-      DB_POSTGRESDB_HOST: host.docker.internal
-      DB_POSTGRESDB_PORT: ${POSTGRES_PORT:-5432}
-      DB_POSTGRESDB_DATABASE: n8n_send_a_zap
-      DB_POSTGRESDB_USER: ${POSTGRES_USER}
-      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
-      N8N_HOST: 0.0.0.0
-      N8N_PORT: 5678
-      N8N_PROTOCOL: http
-      WEBHOOK_URL: ${N8N_PUBLIC_URL:-http://localhost:5678/}
-      GENERIC_TIMEZONE: ${TIMEZONE:-America/Sao_Paulo}
-      TZ: ${TIMEZONE:-America/Sao_Paulo}
-      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - "6379:6379"
     volumes:
-      - n8n_data_dev:/home/node/.n8n
+      - redis_data_dev:/data
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5678/healthz"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
-      retries: 12
-      start_period: 30s
+      retries: 5
 
   nextjs:
     container_name: send_a_zap_nextjs_dev
@@ -49,7 +34,7 @@ services:
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      N8N_WEBHOOK_URL: http://n8n:5678
+      REDIS_URL: redis://redis:6379
       EVOLUTION_API_URL: ${EVOLUTION_API_URL:-http://host.docker.internal:8080}
       EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
       EVOLUTION_WEBHOOK_URL: ${EVOLUTION_WEBHOOK_URL:-http://host.docker.internal:3000/api/webhooks/evolution}
@@ -68,11 +53,37 @@ services:
       - nextjs_build_dev:/app/.next
       - nextjs_pnpm_store_dev:/pnpm-store
     depends_on:
-      n8n:
+      redis:
+        condition: service_healthy
+
+  worker:
+    container_name: send_a_zap_worker_dev
+    image: node:22-alpine
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "corepack enable pnpm && pnpm install --frozen-lockfile && pnpm run worker"
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@host.docker.internal:${POSTGRES_PORT:-5432}/send_a_zap?schema=public
+      REDIS_URL: redis://redis:6379
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL:-http://host.docker.internal:8080}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
+      QUEUE_DASHBOARD_HOST: ${QUEUE_DASHBOARD_HOST:-127.0.0.1}
+      QUEUE_DASHBOARD_PORT: ${QUEUE_DASHBOARD_PORT:-3001}
+      QUEUE_DASHBOARD_USERNAME: ${QUEUE_DASHBOARD_USERNAME:-admin}
+      QUEUE_DASHBOARD_PASSWORD: ${QUEUE_DASHBOARD_PASSWORD}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ../:/app
+      - nextjs_node_modules_dev:/app/node_modules
+      - nextjs_pnpm_store_dev:/pnpm-store
+    depends_on:
+      redis:
         condition: service_healthy
 
 volumes:
-  n8n_data_dev:
+  redis_data_dev:
   nextjs_node_modules_dev:
   nextjs_build_dev:
   nextjs_pnpm_store_dev:
