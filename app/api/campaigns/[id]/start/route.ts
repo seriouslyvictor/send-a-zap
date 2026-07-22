@@ -14,6 +14,7 @@ import { getPrisma } from "@/lib/prisma";
 import { CampaignExecutionError } from "@/lib/campaign-executor";
 import { createDefaultCampaignRunner } from "@/lib/campaign-runner";
 import { getCampaignTickQueue } from "@/lib/campaign-queue";
+import { evaluateSendingCaps, getSendingCaps } from "@/lib/sending-caps";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -26,6 +27,39 @@ interface RouteParams {
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
+
+    const prisma = getPrisma();
+
+    const recipientCount = await prisma.message.count({
+      where: { campaignId: id },
+    });
+
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const dailySendsSoFar = await prisma.message.count({
+      where: {
+        createdAt: { gte: startOfToday },
+        campaignId: { not: id },
+      },
+    });
+
+    const decision = evaluateSendingCaps({
+      recipientCount,
+      dailySendsSoFar,
+      caps: getSendingCaps(),
+    });
+
+    if (!decision.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: decision.message,
+          code: "sending_cap_exceeded",
+        },
+        { status: 403 },
+      );
+    }
 
     const runner = createDefaultCampaignRunner(getCampaignTickQueue());
     const { runId } = await runner.start(id);
